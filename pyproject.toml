@@ -1,0 +1,62 @@
+[project]
+name = "rf-analysis"
+version = "0.1.0"
+description = "Combining several different analysis pipelines for receptive field analysis"
+authors = [
+    {name = "Marvin Seifert",email = "m.seifert@sussex.ac.uk"}
+]
+readme = "README.md"
+requires-python = "==3.10.18"
+
+[tool.poetry.dependencies]
+torch = { version = "2.7.1", source = "torch" }
+torchaudio = { version = "2.7.1", source = "torch" }
+numpy = "^1.26.0"
+h5py = "^3.9.0"
+einops = "^0.7.0"
+matplotlib = "^3.8.0"
+jupyterlab = "^4.0.6"
+soundfile = "^0.12.1"
+tqdm = "^4.66.1"
+ipympl = "^0.9.3"
+blosc = "^1.11.1"
+hdf5plugin = "^4.2.0"
+black = "^23.12.1"
+datashader = "^0.15.2"
+polars = "1.5.0"
+plotly = "^5.17.0"
+panel = "^1.2.3"
+ipywidgets = "^8.1.1"
+sympy = "^1.12"
+pyarrow = "14.0.1"
+holoviews = "^1.17.1"
+spyking-circus = "^1.1.0"
+zstandard = "^0.21.0"
+tslearn = "^0.6.2"
+seaborn = "^0.13.0"
+param = "1.13.0"
+statsmodels = "^0.14.0"
+dask = "^2023.10.0"
+pingouin = "^0.5.3"
+networkx = "^3.2.1"
+pyqt5 = "==5.15.11"
+zarr = "2.15.0"
+pydantic = "^2.11.7"
+rich = "^14.1.0"
+matplotlib-scalebar = "^0.9.0"
+opencv-python = "4.9.0.80"
+hdbscan = "^0.8.40"
+scikit-image = "^0.25.2"
+findpeaks = "^2.7.4"
+entropyhub = "^2.0"
+shapely = "^2.1.1"
+stnmf = "^1.1.0"
+
+[[tool.poetry.source]]
+name = "torch"
+url = "https://download.pytorch.org/whl/cu128"
+priority = "explicit"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
