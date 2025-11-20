@@ -18,7 +18,7 @@ def smooth_ker(ker: np.ndarray, axes: tuple | None = None) -> np.ndarray:
     :return: The smoothed kernel.
     """
 
-    return gaussian_filter(ker.astype(float), 0.5, mode="constant", cval=np.median(ker), axes=axes)
+    return gaussian_filter(ker.astype(float), 5, mode="constant", cval=np.median(ker), axes=axes)
 
 
 def decimate_ker(ker_sm: np.ndarray, factor: int = 5) -> np.ndarray:

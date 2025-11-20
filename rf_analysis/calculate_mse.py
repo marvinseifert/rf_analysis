@@ -10,17 +10,17 @@ This script calculates the maximum mean squared error (MSE) for each cell's spik
 Usually, the MSE is calculated for a cutout around the peak of the STA to save computation time."""
 # %% Parameters
 cut = 100  # Size of the square cutout
-quality_threshold = 10.0  # Only cells with a quality above this threshold are processed
+quality_threshold = 20.0  # Only cells with a quality above this threshold are processed
 new_cell_params = True  # If True, a new cell_params.json is created for each cell, otherwise the existing one is updated
 # Define the path, you may remove or add multiple paths to different noise root folders
-root_path = pathlib.Path(r"/home/mawa/nas_a/Marvin/chicken_13_05_2025/Phase_00")
+root_path = pathlib.Path(
+    r"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_13_11_2025/Phase_00")
 # Define the root paths for the different noise analyses.
 # This script assumes that the calculate_quality.py script has been run for each of these folders and that each
 # folder contains the same nr of cells in the same order.
 noise_roots = [
-    root_path / "4px_20Hz_shuffle_460nm_idx_2",
-    root_path / "4px_20Hz_shuffle_535nm_idx_7",
-    root_path / "4px_20Hz_shuffle_610nm_idx_3"
+    root_path / "4px_20Hz_shuffle_led_610_idx_1",
+
 ]
 # %%
 quality_paths = [

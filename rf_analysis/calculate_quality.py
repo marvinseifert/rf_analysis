@@ -10,7 +10,7 @@ def quality_parallel(folder, cell_ids):
     quality = np.zeros((len(cell_ids), 4))
     for idx, cell_id in enumerate(cell_ids):
 
-        data_path = Path(folder / rf"cell_{cell_id}//kernel_test.npy")
+        data_path = Path(folder / rf"cell_{cell_id}//kernel.npy")
 
         # data_path = Path(rf"C:\Users\Marvin\Downloads\2023-5-5_MP_0_1_SWN_R_25_STRFs.npy")
 
@@ -76,7 +76,7 @@ def quality_parallel(folder, cell_ids):
 if __name__ == "__main__":
     # Start the parallel processing
     folder = Path(
-        rf"/home/mawa/nas_a/Marvin/chicken_13_05_2025/kilosort4/4px_20Hz_shuffle_460nm_idx_2"
+        rf"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_13_11_2025/Phase_00/4px_20Hz_shuffle_led_535_idx_2"
     )
     # Check number of folders in that folder
     nr_folders = len([f for f in folder.iterdir() if f.is_dir()])

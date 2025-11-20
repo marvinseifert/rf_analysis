@@ -3,7 +3,7 @@ name = "rf-analysis"
 version = "0.1.0"
 description = "Combining several different analysis pipelines for receptive field analysis"
 authors = [
-    {name = "Marvin Seifert",email = "m.seifert@sussex.ac.uk"}
+    { name = "Marvin Seifert", email = "m.seifert@sussex.ac.uk" }
 ]
 readme = "README.md"
 requires-python = "==3.10.18"
@@ -51,6 +51,8 @@ findpeaks = "^2.7.4"
 entropyhub = "^2.0"
 shapely = "^2.1.1"
 stnmf = "^1.1.0"
+imageio = { extras = ["ffmpeg"], version = "^2.37.2" }
+
 
 [[tool.poetry.source]]
 name = "torch"

@@ -23,8 +23,8 @@ min_cluster_size = 10
 n_cluster_samples = 5
 # %%
 data_root = Path(
-    r"/media/mawa/52DE7A8FDE7A6B5D/noise_analysis/chicken_09_05_2024/kilosort4/4px_20Hz_shuffle_535nm_idx_12")
-cell_idx = 506
+    r"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_13_11_2025/Phase_00/4px_20Hz_shuffle_led_610_idx_1")
+cell_idx = 102
 save_root = data_root / f"cell_{cell_idx}"
 cell_params = Cell_Params.load_from_root_json(save_root)
 cell_params["s_nmf_analysis"]["n_components"] = n_components

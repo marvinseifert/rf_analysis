@@ -36,20 +36,24 @@ def array_to_uncompressed_video(arr: np.ndarray, out_path: str, fps: int = 25) -
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     # rawvideo + gray -> uncompressed 8-bit grayscale frames
     with imageio.get_writer(
-        out_path,
-        fps=fps,
-        codec="rawvideo",
-        pixelformat="gray",
-        macro_block_size=None,
+            out_path,
+            fps=fps,
+            codec="rawvideo",
+            pixelformat="gray",
+            macro_block_size=None,
     ) as writer:
         for frame in arr:
             # frame shape (y, x), dtype uint8
             writer.append_data(frame)
 
+
 if __name__ == "__main__":
     # Example
     for i in range(14):
-        data = np.load(rf"/home/mawa/nas_a/Marvin/chicken_13_05_2025/kilosort4/4px_20Hz_shuffle_460nm_idx_2/cell_{i}/kernel_test.npy")
+        data = np.load(
+            rf"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Laura/zebrafish_05_11_2025/Phase_01/12px_20Hz_shuffle_idx_6/cell_{i}/kernel.npy")
         # data = np.repeat(data, 5, axis=1)
         # data = np.repeat(data, 5, axis=2)
-        array_to_uncompressed_video(data, out_path=rf"/home/mawa/nas_a/Marvin/chicken_13_05_2025/kilosort4/4px_20Hz_shuffle_460nm_idx_2/cell_{i}/output.mkv", fps=5)
+        array_to_uncompressed_video(data,
+                                    out_path=rf"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Laura/zebrafish_05_11_2025/Phase_01/12px_20Hz_shuffle_idx_6/cell_{i}/output.mkv",
+                                    fps=5)
