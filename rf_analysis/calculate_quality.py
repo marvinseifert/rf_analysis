@@ -76,7 +76,7 @@ def quality_parallel(folder, cell_ids):
 if __name__ == "__main__":
     # Start the parallel processing
     folder = Path(
-        rf"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_13_11_2025/Phase_00/4px_20Hz_shuffle_led_535_idx_2"
+        rf"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Laura/zebrafish_05_11_2025/Phase_01/4px_20Hz_40mins_shuffle_560_idx_8"
     )
     # Check number of folders in that folder
     nr_folders = len([f for f in folder.iterdir() if f.is_dir()])

@@ -22,12 +22,8 @@ import datashader as ds
 import datashader.transfer_functions as tf
 import xarray as xr
 from colorcet import coolwarm
-from sklearn.decomposition import PCA
 from PIL import Image
-from scipy.signal import sosfiltfilt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import colorcet as cc
-from scipy.signal import hilbert, butter
 import matplotlib as mpl
 from normalization.normalize_sta import zscore_sta as zscore
 from covariance.filtering import cov_filtering_sum
