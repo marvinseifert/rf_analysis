@@ -19,9 +19,9 @@ from sklearn.metrics.pairwise import euclidean_distances
 from matplotlib_scalebar.scalebar import ScaleBar
 from polarspike import colour_template
 from pickle import load as load_pickle
-
+from normalization.normalize_sta import zscore_sta
 from organize.dataframe import Noise_store, RF_plotting
-import json
+from scipy.spatial.distance import pdist, squareform
 
 
 class RFClustering:
@@ -50,9 +50,12 @@ class RFClustering:
         for key, value in channel_dict_temp.items():
             print(f"{key}: {value}")
 
+        self.columns_for_clustering = ["sta_single", "center_outline", "surround_outline", "in_out_outline"]
+
         # Check how many channels are in each path
 
         self.scaler = StandardScaler()
+        self.threshold = 20
 
         # Initialize data containers
         self.dfs = None
@@ -66,6 +69,8 @@ class RFClustering:
         self.external_data = None
         self.bins = None
         self.distance_matrix = None
+        self.good_cells = None
+        self.channel_colours = None
 
     def load_rf_data(self):
         """
@@ -90,23 +95,6 @@ class RFClustering:
             dfs.append(noise_store.df)
 
         self.dfs = pl.concat(dfs)
-
-        # Filter for good cells
-        grouped = self.dfs.partition_by("recording", "cell_index")
-        new_grouped = []
-        for element in grouped:
-            new_grouped.append(
-                element.with_columns(
-                    good_cells_all=pl.when(pl.col("rf_std").sum() > 1.5)
-                    .then(True)
-                    .otherwise(False)
-                )
-            )
-        self.dfs = pl.concat(new_grouped)
-        self.dfs = self.dfs.filter(pl.col("good_cells_all") == True)
-        self.dfs = self.dfs.with_columns(
-            good_channel=pl.when(pl.col("rf_std") > 1.5).then(True).otherwise(False)
-        )
 
     def load_external_data(self, psth_path, bins_path, cells_path):
         """
@@ -138,125 +126,47 @@ class RFClustering:
 
         return self
 
-    def prepare_data(self, include_external_data=False):
+    def prepare_data(self, include_external_data: bool = False, scale: bool = True):
         """
-        Process and combine data for clustering.
 
-        Parameters
-        ----------
-        include_external_data : bool, optional
-            Whether to include external PSTH data in the clustering.
-            
-        Returns
-        -------
-        self
         """
-        center_outline = []
-        surround_outline = []
-        in_out_outline = []
-        center_size = []
-        surround_size = []
-        stas = []
-        cells_recordings = []
+        extracted_data = {}
+        group_cols = ["recording", "cell_index"]
+        for col_idx, col in enumerate(self.columns_for_clustering):
+            df_temp = (self.dfs.explode(pl.col(col))
+                       .group_by(group_cols, maintain_order=True)
+                       .agg(pl.col(col).alias("export")))
+            extracted_data[col] = np.vstack(df_temp["export"].to_numpy())
+        # save cells_recordings
+        self.cells_recordings = np.vstack((
+            (df_temp["recording"].to_numpy()),
+            (df_temp["cell_index"].to_numpy())
+        )).T
 
-        for name, data in self.dfs.group_by("recording", "cell_index"):
-            cells_recordings.append(name)
-            quality_pass = data["good_channel"].to_numpy()
-
-            # Process center outline data
-            temp = np.vstack(data["center_outline"])
-            temp[~quality_pass, :] = 0
-            temp[np.isnan(temp)] = 0
-            center_outline.append(temp.flatten())
-
-            # Process surround outline data
-            temp = np.vstack(data["surround_outline"])
-            temp[~quality_pass, :] = 0
-            temp[np.isnan(temp)] = 0
-            surround_outline.append(temp.flatten())
-
-            # Process in/out outline data
-            temp = np.vstack(data["in_out_outline"])
-            temp[~quality_pass, :] = 0
-            temp = temp / np.max(temp, axis=1)[:, None]
-            temp[np.isnan(temp)] = 0
-            in_out_outline.append(temp.flatten())
-
-            # Process center size data
-            temp = np.vstack(data["center_size"])
-            temp[~quality_pass, :] = 0
-            temp[np.isnan(temp)] = 0
-            center_size.append(temp.flatten())
-
-            # Process surround size data
-            temp = np.vstack(data["surround_size"])
-            temp[~quality_pass, :] = 0
-            temp[np.isnan(temp)] = 0
-            surround_size.append(temp.flatten())
-
-            # Process STA data
-            temp = np.vstack(data["sta_single"])
-            temp[~quality_pass, :] = 0
-            temp = zscore(temp, axis=1)
-            temp[np.isnan(temp)] = 0
-            stas.append(temp.flatten())
-
-        self.cells_recordings = np.array(cells_recordings)
-        center_size = np.stack(center_size)
-        surround_size = np.stack(surround_size)
-
-        # Stack and combine data
-        stas = np.stack(stas)
-
-        # Combine data for clustering
-        self.all_data = np.concatenate(
-            [
-                np.stack(center_outline),
-                np.stack(in_out_outline),
-                stas,
-            ],
-            axis=1,
-        )
-
-        # Record data sizes for visualization
-        self.data_sizes = np.array(
-            [
-                center_outline[0].shape[0],
-                in_out_outline[0].shape[0],
-                stas[0].shape[0],
-            ]
-        )
-        self.data_labels = ["center_outline", "in_out_outline", "stas"]
-
-        # Clean data
-        self.all_data[np.isnan(self.all_data)] = 0
-        zeros_sizes = np.sum(np.stack(center_outline), axis=1) != 0
-        self.all_data = self.all_data[zeros_sizes, :]
-        self.cells_recordings = self.cells_recordings[zeros_sizes]
-
-        # Add external data if requested
-        if include_external_data and self.external_data is not None:
-            new_mulitindex = pd.MultiIndex.from_arrays(
-                (self.cells_recordings[:, 0], self.cells_recordings[:, 1].astype(int)),
-                names=["recording", "cell_index"],
-            )
-            all_data_df = pd.DataFrame(data=self.all_data, index=new_mulitindex)
-
-            # Check if all cells in all_data are in external_data
+        # apply normalization to in_out_outline and surround_outline
+        for col in ["center_outline", "in_out_outline", "surround_outline"]:
             try:
-                psth_add = self.external_data.loc[new_mulitindex].to_numpy()
-                self.all_data = np.concatenate([self.all_data, psth_add], axis=1)
-                print(f"Successfully added external data: {psth_add.shape}")
-            except KeyError:
-                print("Not all cells in the RF data are in the external data. Using only RF data.")
-        self.all_data[np.isinf(self.all_data)] = 0
-        # Scale data
-        self.all_data_scaled = self.scaler.fit_transform(self.all_data)
+                extracted_data[col] = extracted_data[col] / np.max(np.abs(extracted_data[col]), axis=1, keepdims=True)
+            except ValueError:
+                pass
+        # normalize sta_single
+        # the original array needs to be split in half along axis 1
+        sta_data = extracted_data["sta_single"]
+        half_point = sta_data.shape[1] // 2
+        sta_first_half = sta_data[:, :half_point]
+        sta_second_half = sta_data[:, half_point:]
+        sta_first_half_norm = zscore_sta(sta_first_half)
+        sta_second_half_norm = zscore_sta(sta_second_half)
+        extracted_data["sta_single"] = np.hstack((sta_first_half_norm, sta_second_half_norm))
 
-        # Emphasize in_out_outline for better clustering
-        start_idx = np.sum(self.data_sizes[:2])
-        end_idx = np.sum(self.data_sizes[:3])
-        self.all_data_scaled[:, start_idx:end_idx] *= 5
+        self.all_data = np.hstack(
+            [extracted_data[col] for col in self.columns_for_clustering])
+        # fill nan with 0
+        self.all_data = np.nan_to_num(self.all_data)
+        self.all_data_scaled = self.scaler.fit_transform(self.all_data)
+        self.good_cells = (
+                self.dfs.group_by(["recording", "cell_index"], maintain_order=True).agg(pl.col("quality").max())[
+                    "quality"].to_numpy() > self.threshold)
 
     def run_pca(self, n_components=10):
         """
@@ -272,8 +182,8 @@ class RFClustering:
         self
         """
         pca = PCA(n_components=n_components, whiten=True)
-        pca.fit(self.all_data_scaled)
-        self.transformed = pca.transform(self.all_data_scaled)
+        pca.fit(self.all_data_scaled[self.good_cells])
+        self.transformed = pca.transform(self.all_data_scaled[self.good_cells])
 
         # Print variance explained per component
         print("Variance explained by PCA components:")
@@ -293,11 +203,11 @@ class RFClustering:
             self.run_pca()
 
         fig, ax = plt.subplots(figsize=(10, 8))
-        unique_rec = np.unique(self.cells_recordings[:, 0], return_inverse=True)[1]
+        unique_rec = np.unique(self.cells_recordings[:, 0], return_inverse=True)[1][self.good_cells]
         scatter = ax.scatter(self.transformed[:, 0], self.transformed[:, 1], c=unique_rec, cmap='tab10')
 
         # Add legend for recordings
-        unique_recordings = np.unique(self.cells_recordings[:, 0])
+        unique_recordings = np.unique(self.cells_recordings[:, 0][self.good_cells])
         legend_elements = [plt.Line2D([0], [0], marker='o', color='w',
                                       label=rec, markerfacecolor=plt.cm.tab10(i % 10),
                                       markersize=8)
@@ -310,7 +220,7 @@ class RFClustering:
 
         return fig, ax
 
-    def calculate_distance_matrix(self):
+    def calculate_distance_matrix(self, distance_metric: str = 'cosine'):
         """
         Calculate the distance matrix for the scaled data.
 
@@ -323,9 +233,9 @@ class RFClustering:
             raise ValueError("Data not prepared. Run prepare_data first.")
 
         # Calculate distance matrix
-        self.distance_matrix = euclidean_distances(self.all_data_scaled)
+        self.distance_matrix = squareform(pdist(self.all_data_scaled[self.good_cells], metric=distance_metric))
 
-    def plot_distance_matrix(self, distance_matrix=None):
+    def plot_distance_matrix(self, **kwargs):
         """
         Plot the distance matrix as a heatmap.
 
@@ -340,7 +250,7 @@ class RFClustering:
             Figure and axis objects.
         """
         if self.distance_matrix is None:
-            self.calculate_distance_matrix()
+            self.calculate_distance_matrix(**kwargs)
 
         fig, ax = plt.subplots(figsize=(10, 8))
         cax = ax.matshow(self.distance_matrix, cmap='viridis')
@@ -352,7 +262,7 @@ class RFClustering:
 
         return fig, ax
 
-    def cluster_data(self, method='affinity', n_clusters=10):
+    def cluster_data(self, method='affinity', n_clusters=10, distance_metric: str = 'cosine'):
         """
         Cluster the data.
 
@@ -362,17 +272,19 @@ class RFClustering:
             Clustering method to use ('affinity' or 'agglomerative')
         n_clusters : int, optional
             Number of clusters for agglomerative clustering.
+        distance_metric : str, optional
+            Distance metric to use for clustering.
             
         Returns
         -------
         self
         """
         # Calculate distance matrix
-        distance_matrix = euclidean_distances(self.all_data_scaled)
+        self.calculate_distance_matrix(distance_metric=distance_metric)
 
         if method.lower() == 'affinity':
             # Use similarity matrix for affinity propagation
-            similarity_matrix = -(distance_matrix ** 2)
+            similarity_matrix = -(self.distance_matrix ** 2)
             clustering = AffinityPropagation(random_state=5, max_iter=10000).fit(similarity_matrix)
             self.labels = clustering.labels_
             print(f"Affinity Propagation found {np.max(self.labels) + 1} clusters")
@@ -381,7 +293,7 @@ class RFClustering:
             clustering = AgglomerativeClustering(
                 n_clusters=n_clusters, metric='precomputed', linkage='average'
             )
-            self.labels = clustering.fit_predict(distance_matrix)
+            self.labels = clustering.fit_predict(self.distance_matrix)
             print(f"Agglomerative clustering with {n_clusters} clusters completed")
 
         else:
@@ -458,40 +370,45 @@ class RFClustering:
             if cluster == -1 or np.sum(self.labels == cluster) < 2:  # Skip noise or small clusters
                 continue
 
-            cell_list = self.cells_recordings[self.labels == cluster, 1]
-            recording_list = self.cells_recordings[self.labels == cluster, 0]
+            cell_list = self.cells_recordings[self.good_cells][self.labels == cluster, 1]
+            recording_list = self.cells_recordings[self.good_cells][self.labels == cluster, 0]
+
+            cluster_df = self.dfs.filter(
+                pl.col("cell_index").is_in(cell_list.astype(int))
+                & pl.col("recording").is_in(recording_list)
+            )
+            # Select the cells with highest quality (unique by cell_index and recording)
+            quality_df = (cluster_df
+                          .group_by(["recording", "cell_index"])
+                          .agg(pl.col("quality").max())
+                          .sort("quality", descending=True)
+                          .filter(pl.col("quality").is_not_nan())
+                          .head(max_cells_per_cluster))
+
+            # get cell indices and recording names for the top cells in this cluster
+            cell_list = quality_df["cell_index"].to_numpy().astype(int)
+            recording_list = quality_df["recording"].to_numpy()
 
             fig, ax = plt.subplots(
-                nrows=len(self.channels),
-                ncols=np.min([len(cell_list), max_cells_per_cluster]),
+                nrows=len(self.dfs["channel"].unique()),
+                ncols=len(cell_list),
                 figsize=(20, 10)
             )
 
             # Ensure ax is 2D array even when there's only one channel
             ax = np.atleast_2d(ax)
 
-            # Add scalebar
-            scalebar = ScaleBar(self.pixel_size, "um", fixed_value=100)
+            # # Add scalebar
+            # scalebar = ScaleBar(self.pixel_size, "um", fixed_value=100)
 
-            cluster_df = self.dfs.filter(
-                pl.col("cell_index").is_in(cell_list.astype(int))
-                & pl.col("recording").is_in(recording_list)
-            )
-            # Select the 10 cells with highest quality
-            quality_df = cluster_df.sort("quality", "cell_index", descending=True)
-            # drop nan
-            quality_df = quality_df.filter(pl.col("quality").is_not_nan())
-            # get cell indices and recording names for the top cells in this cluster
-            cell_list = quality_df.head(max_cells_per_cluster)["cell_index"].to_numpy().astype(int)
-            recording_list = quality_df.head(max_cells_per_cluster)["recording"].to_numpy()
             # Determine common vmin/vmax for color scaling
             random_df = self.dfs.filter(
                 (pl.col("cell_index").is_in(cell_list))
                 & (pl.col("recording").is_in(recording_list))
             )
             vmax = random_df.with_columns(
-                pl.col("cm_signed").arr.max().alias("max_val"),
-                pl.col("cm_signed").arr.min().alias("min_val")
+                pl.col("cm_most_important").arr.max().alias("max_val"),
+                pl.col("cm_most_important").arr.min().alias("min_val")
             ).with_columns(
                 pl.max("max_val").alias("global_max"),
                 pl.min("min_val").alias("global_min")
@@ -507,11 +424,11 @@ class RFClustering:
                     )
                 )
 
-                for channel_idx, channel in enumerate(self.channels):
+                for channel_idx, channel in enumerate(self.dfs["channel"].unique()):
                     try:
                         # Get receptive field data for this cell and channel
                         cm_most_important = df_sub.filter(pl.col("channel") == channel)[
-                            "cm_signed"
+                            "cm_most_important"
                         ].to_numpy()[0]
 
                         cm_most_important = np.reshape(cm_most_important, (200, 200)) / np.max(cm_most_important)
@@ -542,7 +459,7 @@ class RFClustering:
                             f"Could not plot cell {cell_recording[0]} from recording {cell_recording[0]} for channel {channel}")
 
             # Add scalebar to first plot
-            ax[0, 0].add_artist(scalebar)
+            # ax[0, 0].add_artist(scalebar)
 
             plt.suptitle(f"Cluster {cluster} - Receptive Fields", fontsize=16)
             plt.tight_layout()
@@ -574,7 +491,7 @@ class RFClustering:
         clusters = np.unique(self.labels)
 
         fig, ax = plt.subplots(
-            nrows=len(self.channels),
+            nrows=len(self.dfs["channel"].unique()),
             ncols=len(clusters),
             figsize=(10 * len(clusters), 10)
         )
@@ -586,15 +503,16 @@ class RFClustering:
             if cluster == -1:  # Skip noise points
                 continue
 
-            cl_cells = self.cells_recordings[self.labels == cluster, 1]
-            recording_list = self.cells_recordings[self.labels == cluster, 0]
+            cl_cells = self.cells_recordings[self.good_cells][self.labels == cluster, 1]
+            recording_list = self.cells_recordings[self.good_cells][self.labels == cluster, 0]
 
             sub_df = self.dfs.filter(
                 pl.col("cell_index").is_in(cl_cells.astype(int))
                 & pl.col("recording").is_in(recording_list)
             )
 
-            for channel_idx, channel in enumerate(self.channels):
+            for channel_idx, channel in enumerate(self.dfs["channel"].unique()):
+                print(channel_idx)
                 try:
                     stas = np.vstack(sub_df.filter(pl.col("channel") == channel)["sta_single"])
                     stas_mean = np.mean(stas, axis=0)

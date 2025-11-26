@@ -243,7 +243,8 @@ circular_reduction_dict["max_radius"] = int(
 )
 # %% Step two sta extension and covariance matrix
 # This is a for loop, because the data is too large for running in parallel.
-for row in tqdm(noise_store.df.iter_rows(), total=len(noise_store.df), desc="Calculating covariance matrices"):
+for row_idx, row in tqdm(enumerate(noise_store.df.iter_rows()), total=len(noise_store.df),
+                         desc="Calculating covariance matrices"):
     cell_idx = row[noise_store.df.get_column_index("cell_index")]
 
     channel = row[noise_store.df.get_column_index("channel")]
@@ -374,11 +375,11 @@ for row in tqdm(noise_store.df.iter_rows(), total=len(noise_store.df), desc="Cal
 
     # Covariance with the most-important pixel without forming full cov matrix
     cov_with_most = (flat.T @ flat[:, most_idx]) / (time_bins - 1)
-    cm_most_important_store[cell_idx, :, :] = cov_with_most.reshape(h, w)
+    cm_most_important_store[row_idx, :, :] = cov_with_most.reshape(h, w)
 
     # Store STA time course of the selected pixel
     pix_y, pix_x = divmod(most_idx, w)
-    sta_single_store[cell_idx, :time_bins] = sta_per_spike[:, pix_y, pix_x]
+    sta_single_store[row_idx, :time_bins] = sta_per_spike[:, pix_y, pix_x] + 0.5
 
     #
 
@@ -509,7 +510,7 @@ for series_idx, series in enumerate(
 # %% Update good cells
 
 noise_store.df = noise_store.df.with_columns(
-    (pl.col("cm_most_important").arr.max() > 0).alias("good_cells")
+    (pl.col("cm_most_important").arr.max() > alys_settings["thresholding"]["threshold"]).alias("good_cells")
 )
 noise_store.save()
 

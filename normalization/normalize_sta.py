@@ -10,11 +10,31 @@ def zscore(array: np.ndarray) -> np.ndarray:
     return (array - np.mean(array)) / np.std(array)
 
 
-def zscore_sta(sta):
-    """Special zscore over the time axis (axis=1). The standard deviation is calculated only considering the last
-    30 entries of the time axis."""
-    sta = np.array(sta)
-    sta = sta - np.mean(sta)
-    std = np.std(sta[-20:])
-    sta = sta / std
-    return sta
+def zscore_sta(sta, trailing_samples: int = 30) -> np.ndarray:
+    """
+    Special z-score normalization over the time axis.
+
+    Works with 1D arrays (n_samples,) and 2D arrays (n_samples, n_features).
+    The mean is computed over the full time axis.
+    The standard deviation is computed using only the last 30 samples of the time axis
+    (per feature for 2D inputs).
+    """
+    arr = np.asarray(sta, dtype=float)
+
+    if arr.ndim == 1:
+        mean = arr.mean()
+        tail = arr[-min(trailing_samples, arr.shape[0]):]
+        std = tail.std()
+        if std == 0 or not np.isfinite(std):
+            std = 1.0
+        return (arr - mean) / std
+
+    if arr.ndim == 2:
+        mean = arr.mean(axis=1, keepdims=True)
+        tail_len = min(trailing_samples, arr.shape[0])
+        tail = arr[:, -tail_len:]
+        std = tail.std(axis=1, keepdims=True)
+        std = np.where(std == 0, 1.0, std)
+        return (arr - mean) / std
+
+    raise ValueError("zscore_sta expects a 1D or 2D array")
