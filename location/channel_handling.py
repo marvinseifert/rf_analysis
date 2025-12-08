@@ -137,6 +137,103 @@ def masking_square(
     return mask
 
 
+import numpy as np
+import xarray as xr
+
+
+def masking_square_xarray(
+    da: xr.DataArray,
+    x_dim: str = "x",
+    y_dim: str = "y",
+    center: tuple = None,
+    width: int = None,
+    height: int = None,
+) -> xr.DataArray:
+    """
+    Creates a rectangular boolean mask for an xarray DataArray.
+
+    Parameters
+    ----------
+    da : xr.DataArray
+        The input xarray DataArray with 'x' and 'y' dimensions (or specified by x_dim/y_dim).
+    x_dim : str
+        The name of the x-dimension (width). Defaults to 'x'.
+    y_dim : str
+        The name of the y-dimension (height). Defaults to 'y'.
+    center : tuple
+        The coordinates of the center of the rectangle (x index, y index).
+        (x index is the index along the x_dim, y index is the index along the y_dim).
+    width : int
+        The width (number of indices along x_dim) of the rectangle.
+    height : int
+        The height (number of indices along y_dim) of the rectangle.
+
+    Returns
+    -------
+    mask : xr.DataArray
+        A boolean mask DataArray with the same 'y' and 'x' dimensions as the input,
+        but only 2D, with values inside the rectangular mask set to True.
+    """
+
+    # 1. Get dimensions from the xarray DataArray
+    try:
+        w = da.sizes[x_dim]  # width is the size of the x_dim
+        h = da.sizes[y_dim]  # height is the size of the y_dim
+    except KeyError:
+        raise ValueError(
+            f"Input DataArray must have dimensions '{x_dim}' and '{y_dim}'."
+        )
+
+    # 2. Set default values for center, width, and height (using array indices)
+    if center is None:
+        # Use the middle index for both dimensions
+        center = (w // 2, h // 2)  # (x_center_index, y_center_index)
+    if width is None:
+        width = w // 4
+    if height is None:
+        height = h // 4
+
+    # 3. Calculate the index boundaries of the rectangle
+    # The center tuple is (x_index, y_index)
+    x_center_index = center[0]
+    y_center_index = center[1]
+
+    # Calculate x (left/right) boundaries
+    left_edge = max(x_center_index - width // 2, 0)
+    # Ensure the right edge does not exceed the array bounds (w)
+    right_edge = min(left_edge + width, w)
+
+    # Calculate y (top/bottom) boundaries
+    top_edge = max(y_center_index - height // 2, 0)
+    # Ensure the bottom edge does not exceed the array bounds (h)
+    bottom_edge = min(top_edge + height, h)
+
+    # Correct for potential shifts if min() was used, ensuring the width/height is respected
+    # if it doesn't cause out-of-bounds on the *other* side.
+    if right_edge - left_edge < width:
+        # If clipped on the right, try to shift left to maintain width
+        left_edge = max(right_edge - width, 0)
+    if bottom_edge - top_edge < height:
+        # If clipped on the bottom, try to shift up to maintain height
+        top_edge = max(bottom_edge - height, 0)
+
+    # 4. Create the 2D NumPy mask
+    np_mask = np.zeros((h, w), dtype=bool)
+    # Slicing is always (row, column) which corresponds to (y_dim, x_dim)
+    np_mask[top_edge:bottom_edge, left_edge:right_edge] = True
+
+    # 5. Convert the NumPy mask to an xarray DataArray
+    # The dimensions are (y_dim, x_dim) because of the (h, w) shape
+    mask_da = xr.DataArray(
+        np_mask,
+        coords={y_dim: da.coords[y_dim], x_dim: da.coords[x_dim]},
+        dims=[y_dim, x_dim],
+        name="mask_square",
+    )
+
+    return mask_da
+
+
 def eliminate_singled(
     sta: np.ndarray, filter: bool = False, state: int = 1, **kwargs
 ) -> tuple[np.ndarray, np.ndarray, int]:

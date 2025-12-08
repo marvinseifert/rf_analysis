@@ -52,6 +52,7 @@ entropyhub = "^2.0"
 shapely = "^2.1.1"
 stnmf = "^1.1.0"
 imageio = { extras = ["ffmpeg"], version = "^2.37.2" }
+numpydantic = "^1.7.0"
 
 
 [[tool.poetry.source]]

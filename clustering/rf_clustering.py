@@ -559,7 +559,7 @@ class RFClustering:
         clusters = np.unique(self.labels)
 
         fig, ax = plt.subplots(
-            nrows=len(self.channels),
+            nrows=len(self.dfs["channel"].unique()),
             ncols=len(clusters),
             figsize=(max(5 * len(clusters), 10), 10),
             subplot_kw={"projection": "polar"}
@@ -576,15 +576,15 @@ class RFClustering:
             if cluster == -1:  # Skip noise points
                 continue
 
-            cl_cells = self.cells_recordings[self.labels == cluster, 1]
-            recording_list = self.cells_recordings[self.labels == cluster, 0]
+            cl_cells = self.cells_recordings[self.good_cells][self.labels == cluster, 1]
+            recording_list = self.cells_recordings[self.good_cells][self.labels == cluster, 0]
 
             sub_df = self.dfs.filter(
                 pl.col("cell_index").is_in(cl_cells.astype(int))
                 & pl.col("recording").is_in(recording_list)
             )
 
-            for channel_idx, channel in enumerate(self.channels):
+            for channel_idx, channel in enumerate(self.dfs["channel"].unique()):
                 try:
                     # Get center outlines for this cluster and channel
                     cell_outlines = np.vstack(sub_df.filter(pl.col("channel") == channel)["center_outline"])

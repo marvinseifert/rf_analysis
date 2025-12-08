@@ -55,3 +55,19 @@ for a in ax.flatten():
 
 fig.savefig(
     r"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/cluster_plots/stas.svg")
+
+# %%
+fig, ax = rfc.plot_center_outlines()
+# share radial axis
+for a in ax.flatten():
+    a.set_rmax(30)
+    a.set_rticks([10, 20, 30, 40, 50])  # Less radial ticks
+    a.set_rlabel_position(-22.5)  # Move radial labels away from plotted line
+    a.grid(True)
+
+    a.set_theta_zero_location("N")
+    a.set_theta_direction(-1)
+    a.set_xlabel("Angle (degrees)")
+    a.set_ylabel("Distance (um)")
+fig.savefig(
+    r"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/cluster_plots/outlines.svg")

@@ -4,81 +4,10 @@ from pathlib import Path
 import pickle
 import matplotlib.pyplot as plt
 from matplotlib_scalebar.scalebar import ScaleBar
-
-
-class Noise_store:
-    def __init__(self, settings_dict, df=None, nr_cells=None):
-        self.settings_dict = settings_dict
-        if df is not None:
-            self.df = df
-            self.nr_cells = df["cell_index"].n_unique()
-            self.schema = self.df.schema
-        elif nr_cells is not None:
-            self.nr_cells = nr_cells
-            self.schema = {
-                "cell_index": pl.UInt32,
-                "channel": pl.Categorical,
-                "sta_path": pl.Utf8,
-            }
-            self.df = self.create_df(settings_dict["data_dict"]["channels"])
-        else:
-            exit("Either a dataframe or the number of cells must be provided")
-
-    def create_df(self, channels):
-        cat_dtype = pl.Enum(channels)
-
-        channels_complete = []
-        cell_indices = []
-        paths = []
-        for channel_idx, channel in enumerate(channels):
-            channels_complete.extend([channel] * self.nr_cells)
-            cell_indices.extend(np.arange(self.nr_cells))
-            paths.extend(
-                str(
-                    self.settings_dict["data_dict"]["project_root"]
-                    / self.settings_dict["data_dict"]["channel_paths"][channel_idx]
-                    / f"cell_{idx}"
-                    / self.settings_dict["data_dict"]["sta_file"]
-                )
-                for idx in range(self.nr_cells)
-            )
-        data_dict = {
-            "channel": pl.Series(
-                channels_complete,
-                dtype=cat_dtype,
-            ),
-            "cell_index": pl.Series(cell_indices, dtype=pl.UInt32),
-            "sta_path": pl.Series(paths, dtype=pl.Utf8),
-        }
-
-        df = pl.DataFrame(data=data_dict, schema=self.schema)
-        return df
-
-    def save(self):
-        self.df.write_parquet(
-            self.settings_dict["data_dict"]["project_root"]
-            / self.settings_dict["data_dict"]["output_folder"]
-            / "noise_df"
-        )
-        with open(
-                self.settings_dict["data_dict"]["project_root"]
-                / self.settings_dict["data_dict"]["output_folder"]
-                / "settings.pkl",
-                "wb",
-        ) as f:
-            pickle.dump(self.settings_dict, f)
-
-    @classmethod
-    def load(cls, analysis_folder):
-        with open(analysis_folder / "settings.pkl", "rb") as f:
-            settings_dict = pickle.load(f)
-        df = pl.read_parquet(analysis_folder / "noise_df")
-        obj = cls(settings_dict, df)
-        return obj
+from organize.configs import Circular_Reduction_Config
 
 
 class RF_plotting:
-
     def __init__(self, settings_dict, df=None):
         self.settings_dict = settings_dict
         if df is not None:
@@ -163,8 +92,8 @@ class RF_plotting:
                     ].to_numpy(),
                 )[0].flatten()
                 if (
-                        cell_df.filter(pl.col("channel") == channel)["quality"]
-                        < self.settings_dict["thresholding"]["threshold"]
+                    cell_df.filter(pl.col("channel") == channel)["quality"]
+                    < self.settings_dict["thresholding"]["threshold"]
                 )[0] and thresholding:
                     continue
 
@@ -197,8 +126,8 @@ class RF_plotting:
                     cell_df.filter(pl.col("channel") == channel)["sta_single"]
                 ).to_numpy()
                 if (
-                        cell_df.filter(pl.col("channel") == channel)["quality"]
-                        < self.settings_dict["thresholding"]["threshold"]
+                    cell_df.filter(pl.col("channel") == channel)["quality"]
+                    < self.settings_dict["thresholding"]["threshold"]
                 )[0] and thresholding:
                     continue
 
