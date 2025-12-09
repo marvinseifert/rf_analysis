@@ -20,7 +20,7 @@ from functools import partial
 import json
 from rf_analysis import calculate_quality
 import warnings
-from combined_analysis.reduce_all import perform_circular_reduction
+from combined_analysis.reduce_all import sta_2d_cov_collapse, circular_reduction
 import numpy as np
 
 
@@ -160,7 +160,7 @@ class Noise_Stimulus_Config(Loadable_Model):
         object.__setattr__(self, "total_sta_len", noise_params.total_sta_len)
 
 
-class Circular_Reduction_Config(Loadable_Model):
+class Collapse_2d_Config(Loadable_Model):
     """
     Configuration for circular reduction of spike-triggered averages (STAs).
     Parameters
@@ -178,30 +178,31 @@ class Circular_Reduction_Config(Loadable_Model):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     recording_config: Recording_Config
-    cut_size_um: xr.DataArray
-    degree_bins: int
+    cut_size_um: XrDataArray
     threshold: float = Field(default=20.0)
-    max_radius_px: Dict[str, int] = Field(default_factory=dict)
-    sta_to_2d_method: Callable = Field(default=lambda sta: sta.var(dim="time"))
-    cut_size_px: Dict[str, xr.DataArray] = Field(default_factory=dict)
-    half_cut_size_px: Dict[str, xr.DataArray] = Field(default_factory=dict)
-    extended_cut_size_px: Dict[str, xr.DataArray] = Field(default_factory=dict)
-    border_buffer_px: Dict[str, xr.DataArray] = Field(default_factory=dict)
-    JSON_FILENAME: ClassVar[str] = "circular_reduction_config.json"
+    max_radius_px: Dict[str, XrDataArray] = Field(default_factory=dict)
+    sta_to_2d_method: str = Field(
+        default="covariance", description="Method to convert STA to 2D representation"
+    )
+    cut_size_px: Dict[str, XrDataArray] = Field(default_factory=dict)
+    half_cut_size_px: Dict[str, XrDataArray] = Field(default_factory=dict)
+    extended_cut_size_px: Dict[str, XrDataArray] = Field(default_factory=dict)
+    border_buffer_px: Dict[str, XrDataArray] = Field(default_factory=dict)
+    JSON_FILENAME: ClassVar[str] = "collapse_2d_config.json"
     output_folder: Path | None = Field(default=None)
 
     def model_post_init(self, __context):
-        max_cut_size_px: Dict[str, xr.DataArray] = {}
-        max_half_cut_size_px: Dict[str, xr.DataArray] = {}
-        extended_cut_size_px: Dict[str, xr.DataArray] = {}
-        border_buffer_px: Dict[str, xr.DataArray] = {}
+        max_cut_size_px: Dict[str, XrDataArray] = {}
+        max_half_cut_size_px: Dict[str, XrDataArray] = {}
+        extended_cut_size_px: Dict[str, XrDataArray] = {}
+        border_buffer_px: Dict[str, XrDataArray] = {}
         max_radius_px: Dict[str, int] = {}
 
         for channel_name in self.recording_config.channel_configs:
             cut_size_px = (
                 (
-                    self.cut_size_um
-                    / self.recording_config.channel_configs[channel_name].pixel_size
+                        self.cut_size_um
+                        / self.recording_config.channel_configs[channel_name].pixel_size
                 )
                 .round()
                 .astype(int)
@@ -212,15 +213,15 @@ class Circular_Reduction_Config(Loadable_Model):
             max_cut_size_px[channel_name] = cut_size_px
             max_half_cut_size_px[channel_name] = half_cut
             extended_cut_size_px[channel_name] = (
-                self.recording_config.channel_configs[channel_name].image_shape
-                + half_cut
+                    self.recording_config.channel_configs[channel_name].image_shape
+                    + half_cut
             )
             border_buffer_px[channel_name] = (
-                extended_cut_size_px[channel_name]
-                - self.recording_config.channel_configs[channel_name].image_shape
+                    extended_cut_size_px[channel_name]
+                    - self.recording_config.channel_configs[channel_name].image_shape
             )
             max_radius_px[channel_name] = (
-                np.sqrt(cut_size_px.max() ** 2 + cut_size_px.max() ** 2) // 2
+                    np.sqrt(cut_size_px.max() ** 2 + cut_size_px.max() ** 2) // 2
             )
 
         object.__setattr__(self, "cut_size_px", max_cut_size_px)
@@ -228,6 +229,17 @@ class Circular_Reduction_Config(Loadable_Model):
         object.__setattr__(self, "extended_cut_size_px", extended_cut_size_px)
         object.__setattr__(self, "border_buffer_px", border_buffer_px)
         object.__setattr__(self, "max_radius_px", max_radius_px)
+
+
+class Circular_Reduction_Config(Loadable_Model):
+    """
+    Configuration for circular reduction of spike-triggered averages (STAs).
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    JSON_FILENAME: ClassVar[str] = "circular_reduction_config.json"
+    output_folder: Path | None = Field(default=None)
+    degree_bins: int = Field(default=10)
 
 
 class Analysis_Pipeline:
@@ -239,6 +251,7 @@ class Analysis_Pipeline:
     CONFIG_REGISTRY = {
         "Recording_Config": Recording_Config,
         "Noise_Stimulus_Config": Noise_Stimulus_Config,
+        "Collapse_2d_Config": Collapse_2d_Config,
         "Circular_Reduction_Config": Circular_Reduction_Config,
         # Add any other config classes you create
     }
@@ -246,15 +259,16 @@ class Analysis_Pipeline:
     CALLABLES_REGISTRY = {
         # Add any analysis functions you create here for loading
         "calculate_rf_quality": calculate_quality.calculate_rf_quality,
-        "perform_circular_reduction": perform_circular_reduction,
+        "sta_2d_cov_collapse": sta_2d_cov_collapse,
+        "circular_reduction": circular_reduction,
     }
 
     def __init__(
-        self,
-        analysis_folder: str,
-        recording_config: Recording_Config,
-        *other_configs: List[Any],
-        tasks: Optional[List[Callable[..., Any]]] = None,
+            self,
+            analysis_folder: str,
+            recording_config: Recording_Config,
+            other_configs: List[Any],
+            tasks: Optional[List[Callable[..., Any]]] = None,
     ):
         self.configs: Dict[Type[Any], Any] = {type(recording_config): recording_config}
         # We store configs in a dictionary mapping the Class Type to the Instance
@@ -299,7 +313,7 @@ class Analysis_Pipeline:
             for name, param in sig.parameters.items():
                 param_type = resolved_types.get(name, Any)
                 # Skip 'self' or 'cls' for method inspection (if needed, though Pydantic often handles this)
-                if name in ("self", "cls"):
+                if name in ("self", "cls", "analysis_folder"):
                     continue
 
                 # 1. Dependency Injection (Config Found)
@@ -333,6 +347,9 @@ class Analysis_Pipeline:
                 continue
             # save the function name
             self._scheduled_function_names.append(func.__name__)
+            # add analysis_folder to kwargs
+            kwargs["analysis_folder"] = self.analysis_folder
+
             # We need to carry over any pipeline dependencies
             scheduled_func = partial(func, **kwargs)
             if hasattr(func, "_pipeline_dependencies"):
@@ -353,7 +370,7 @@ class Analysis_Pipeline:
         config_types = [type(config).__name__ for config in self.configs.values()]
 
         with open(
-            self.root_output_folder / self.analysis_folder / "tasks_configs.json", "w"
+                self.root_output_folder / self.analysis_folder / "tasks_configs.json", "w"
         ) as f:
             json.dump(
                 {
@@ -393,7 +410,7 @@ class Analysis_Pipeline:
         pipeline = cls(
             analysis_folder=analysis_folder,
             recording_config=configs[0],
-            *configs[1:],
+            other_configs=configs[1:],
             tasks=tasks,
         )
         pipeline._finished_tasks = task_dict.get("finished_tasks", [])

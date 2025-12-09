@@ -10,7 +10,9 @@ import pickle
 
 
 # %% Functions
-def polar_transform(array, center=(100, 100), max_radius=70):
+def polar_transform(
+        array: np.ndarray, center: tuple = (100, 100), max_radius: int = 70
+):
     # Define the shape of the new array
     new_shape = (360, max_radius)
     # Define the center of the original array

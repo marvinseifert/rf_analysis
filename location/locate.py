@@ -1,6 +1,10 @@
+from typing import Any
+
 import numpy as np
 import cv2
 import networkx as nx
+from xarray import Dataset, DataTree
+
 from graph.build_graph import array_to_graph
 import xarray as xr
 from pathlib import Path
@@ -110,49 +114,104 @@ def um_position_to_px(
 
 def locate_across_channels(
         channel_paths: list[Path], threshold: float = 20, channel_names: list[str] = None
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Dataset, DataTree | Any]:
     """
     Loads the quality.npy files from all channels and computes the mean positions across cells.
-    ... [Documentation omitted for brevity]
+    Parameters
+    ----------
+    channel_paths : list[Path]
+        List of paths to the channels.
+    threshold : float
+        Quality threshold below which weights are set to a small value.
+    channel_names : list[str], optional
+        List of channel names corresponding to the channel paths.
+    Returns
+    -------
+    tuple[xr.DataArray, xr.DataArray]
+        A tuple containing:
+        - final_quality_array: An xarray DataArray with quality metrics from all channels.
+        - mean_positions: An xarray DataArray with the computed mean positions across channels.
     """
-    first_quality_array = xr.load_dataset(channel_paths[0] / "quality.nc")
-    # 1. INITIAL SETUP AND VALIDATION
-    first_quality_array = first_quality_array.expand_dims(dim={"channel": 2})
+    # Assuming channel_paths is a list of Path objects
+
+    # 1. INITIAL SETUP: Load the first channel and prepare it
+    # Load the first channel's data
+    first_channel_data = xr.load_dataset(channel_paths[0] / "quality.nc")
+    first_channel_data = first_channel_data.rename_vars(
+        {"__xarray_dataarray_variable__": "quality_metrics"}
+    )
+    # Ensure the 'channel' coordinate exists on the first data item
     if channel_names:
-        first_quality_array = first_quality_array.assign_coords(
-            channel=("channel", channel_names)
+        first_channel_data = first_channel_data.assign_coords(
+            channel=channel_names[
+                0
+            ]  # Assign the first channel's name as a scalar coord
         )
 
-    # 2. LOAD ALL CHANNEL DATA (Correctly loading all channels before processing)
+    # A list to hold all the individual xarray Datasets for concatenation
+    all_channel_datasets = [first_channel_data]
+
+    # 2. LOAD AND COLLECT ALL REMAINING CHANNEL DATA
     for i, channel_path in enumerate(channel_paths[1:], start=1):
-        quality_array = xr.load_dataset(channel_paths[0] / "quality.nc")
-        first_quality_array[:, :, i] = quality_array
+        quality_array = xr.load_dataset(channel_path / "quality.nc")
+        quality_array = quality_array.rename_vars(
+            {"__xarray_dataarray_variable__": "quality_metrics"}
+        )
+        # Assign the correct channel name coordinate if available
+        if channel_names:
+            quality_array = quality_array.assign_coords(channel=channel_names[i])
+
+        all_channel_datasets.append(quality_array)
+
+    # 3. CONCATENATE ALL DATASETS
+    # Concatenate the list of Datasets along the 'channel' dimension
+    final_quality_array = xr.concat(
+        all_channel_datasets,
+        dim="channel",
+        data_vars="all",  # Ensure all variables are concatenated
+    )
 
     # 3. CORRECT THRESHOLDING AND WEIGHT PREPARATION
 
     # Extract the raw quality values (weights) for all channels
-    weights_raw = quality_store[:, 0, :]  # Shape: (nr_cells, nr_channels)
+    weights_raw = final_quality_array.sel(
+        metrics="quality"
+    )  # Shape: (nr_cells, nr_channels)
 
     # Apply the threshold: set all weights below the threshold to 0.0
     # This is the correct way to exclude "bad" measurements.
-    weights_masked = np.where(weights_raw < threshold, 1e-6, weights_raw)
+    weights_masked = xr.where(weights_raw < threshold, 1e-6, weights_raw)
 
     # Expand weights to match the 2 (x,y) dimensions for np.average
     # Shape becomes: (nr_cells, 2, nr_channels)
-    weights_expanded = np.tile(weights_masked[:, np.newaxis, :], (1, 2, 1))
+    position_metrics = ["center_x", "center_y"]
+    position_data = final_quality_array.sel(metrics=position_metrics)
 
-    # 4. CALCULATE WEIGHTED MEAN POSITION
-    mean_positions = np.average(
-        quality_store[:, 2:4, :],  # Position data (x, y)
-        axis=2,  # Average across the channel axis
-        weights=weights_expanded,
-    )
+    # 3a. Weighted Sum:
+    # The weight array (cell, channel) automatically broadcasts across the metrics dimension (x, y)
+    # Weighted_sum has dimensions (cell, metrics)
+    weighted_sum = (position_data * weights_masked).sum(dim="channel")
 
+    # 3b. Total Weight:
+    # Total_weights has dimensions (cell)
+    total_weights = weights_masked.sum(dim="channel")
+
+    # 3c. Calculate Mean:
+    # We divide the weighted sum by the total weights.
+    # total_weights (cell) automatically broadcasts across the metrics dimension (x, y)
+    # during the division.
+    mean_positions = weighted_sum / total_weights
     # Optional: Handle the case where a cell has 0 total weight (returns NaN)
-    total_weights = np.sum(weights_masked, axis=1)
-    # Get the indices where total weight is zero
-    no_weight_mask = total_weights == 0
-    # Set the mean position for these cells to the position from the first channel (arbitrary default)
-    mean_positions[no_weight_mask] = quality_store[no_weight_mask, 2:4, 0]
+    # --- 4. HANDLE ZERO TOTAL WEIGHT ---
 
-    return quality_store, mean_positions
+    # Identify cells where the total weight is zero
+    no_weight_mask = total_weights == 0
+
+    # Get the fallback position from the first channel (channel index 0)
+    # Fallback_position has dimensions (cell, metrics)
+    fallback_position = position_data.isel(channel=0).drop_vars("channel")
+
+    # Use xr.where() to replace NaN (or arbitrary result) positions with the fallback position
+    final_mean_positions = xr.where(no_weight_mask, fallback_position, mean_positions)
+
+    return final_quality_array, final_mean_positions

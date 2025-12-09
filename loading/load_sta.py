@@ -102,33 +102,57 @@ def load_sta_subset(
     except FileNotFoundError as exc:
         raise FileNotFoundError(f"File not found: {sta_path}") from exc
 
-    half_border = (subset_size[0] // 2, subset_size[1] // 2)
-    sta_data = sta_data.pad(
-        x=(half_border[0], half_border[0]),  # Padding along 'x' (width)
-        y=(half_border[1], half_border[1]),  # Padding along 'y' (height)
+    half_border_x = subset_size[1] // 2  # Width padding
+    half_border_y = subset_size[0] // 2  # Height padding
+    sta_data_padded = sta_data.pad(
+        x=(half_border_x, half_border_x),
+        y=(half_border_y, half_border_y),
         mode="median",
-    ).astype(
-        float
-    )  # Ensure float type after padding
+    ).astype(float)
 
-    c_x, c_y = positions[0] + half_border[1], positions[1] + half_border[0]
+    # 2. FIX: Create new, continuous coordinates and assign them to the padded array.
+    # We assume 'x' and 'y' coordinates are simply 0-indexed positions.
+    new_x_coords = np.arange(sta_data_padded.sizes["x"])
+    new_y_coords = np.arange(sta_data_padded.sizes["y"])
+
+    sta_data_padded = sta_data_padded.assign_coords(
+        {"x": new_x_coords, "y": new_y_coords}
+    )
+
+    # Note: If your original 'x' and 'y' coordinates represented physical space (e.g., microns)
+    # and were not just integer indices, you would need to calculate the new continuous
+    # physical coordinates for the padded array here. Assuming for now they are indices.
+
+    # 3. Calculate new center position (c_x is width, c_y is height)
+    # positions[0] is cX (width/x), positions[1] is cY (height/y)
+    # The new center is the old center shifted by the padding amount.
+    c_x, c_y = positions[0] + half_border_x, positions[1] + half_border_y
+
+    # 4. Check border constraints and update center
     c_x, c_y = check_border_constrains(
-        c_x, c_y, (sta_data.sizes["x"], sta_data.sizes["y"]), half_border
+        c_x,
+        c_y,
+        (sta_data_padded.sizes["x"], sta_data_padded.sizes["y"]),
+        (half_border_x, half_border_y),
     )
 
+    # 5. Create the mask using the padded array's dimensions
     mask = masking_square(
-        sta_data.sizes["y"],
-        sta_data.sizes["x"],
+        sta_data_padded.sizes["y"],
+        sta_data_padded.sizes["x"],
         (int(c_x), int(c_y)),
-        subset_size[1],
-        subset_size[0],
+        subset_size[1],  # mask width
+        subset_size[0],  # mask height
     )
-    # make mask a xarray with dimensions y, x
-    mask = xr.DataArray(
+
+    # make mask an xarray with dimensions y, x
+    mask_da = xr.DataArray(
         mask,
-        coords={"y": sta_data.coords["y"], "x": sta_data.coords["x"]},
+        coords={"y": sta_data_padded.coords["y"], "x": sta_data_padded.coords["x"]},
         dims=("y", "x"),
     )
-    subset = sta_data.where(mask, drop=True)
+
+    # 6. Apply mask and drop NaNs (this correctly subsets the data and coordinates)
+    subset = sta_data_padded.where(mask_da, drop=True)
 
     return subset, c_x, c_y
