@@ -6,7 +6,7 @@ authors = [
     { name = "Marvin Seifert", email = "m.seifert@sussex.ac.uk" }
 ]
 readme = "README.md"
-requires-python = "==3.10.18"
+requires-python = "==3.10.19"
 
 [tool.poetry.dependencies]
 torch = { version = "2.7.1", source = "torch" }
@@ -53,6 +53,7 @@ shapely = "^2.1.1"
 stnmf = "^1.1.0"
 imageio = { extras = ["ffmpeg"], version = "^2.37.2" }
 numpydantic = "^1.7.0"
+circle-fit = "^0.2.1"
 
 
 [[tool.poetry.source]]

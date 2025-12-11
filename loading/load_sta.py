@@ -156,3 +156,27 @@ def load_sta_subset(
     subset = sta_data_padded.where(mask_da, drop=True)
 
     return subset, c_x, c_y
+
+
+def sta_time_dimension(
+        total_nr_bins: int = 100, dt_ms: float = 1.0, t_zero: int = 0
+) -> np.ndarray:
+    """
+    Calculates time coordinates for STA data given number of bins, time step, and zero index.
+    Parameters
+    ----------
+    total_nr_bins : int
+        Total number of time bins in the STA data.
+    dt_ms : float
+        Time step in milliseconds.
+    t_zero : int
+        Index corresponding to Time=0 (spike trigger).
+    Returns
+    -------
+    np.ndarray
+        Array of time coordinates in milliseconds.
+
+    """
+    time_indices = np.arange(total_nr_bins)
+    time_coords = (time_indices - t_zero) * dt_ms
+    return time_coords

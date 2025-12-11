@@ -214,12 +214,12 @@ class Collapse_2d_Config(Loadable_Model):
             max_half_cut_size_px[channel_name] = half_cut
             extended_cut_size_px[channel_name] = (
                     self.recording_config.channel_configs[channel_name].image_shape
-                    + half_cut
+                    + cut_size_px
             )
             border_buffer_px[channel_name] = (
-                    extended_cut_size_px[channel_name]
-                    - self.recording_config.channel_configs[channel_name].image_shape
-            )
+                                                     extended_cut_size_px[channel_name]
+                                                     - self.recording_config.channel_configs[channel_name].image_shape
+                                             ) // 2
             max_radius_px[channel_name] = (
                     np.sqrt(cut_size_px.max() ** 2 + cut_size_px.max() ** 2) // 2
             )
@@ -267,9 +267,11 @@ class Analysis_Pipeline:
             self,
             analysis_folder: str,
             recording_config: Recording_Config,
-            other_configs: List[Any],
+            other_configs: List[Any] = None,
             tasks: Optional[List[Callable[..., Any]]] = None,
     ):
+        if other_configs is None:
+            other_configs = []
         self.configs: Dict[Type[Any], Any] = {type(recording_config): recording_config}
         # We store configs in a dictionary mapping the Class Type to the Instance
         for config in other_configs:
@@ -286,9 +288,20 @@ class Analysis_Pipeline:
         self.root_output_folder = recording_config.output_folder
         # 3. Define the full, immutable pipeline output path
         self.pipeline_output_path = self.root_output_folder / analysis_folder
+        # Create the analysis folder if it doesn't exist
         for task in tasks or []:
             self.schedule([task])
         self._finished_tasks: List[str] = []
+        try:
+            self.pipeline_output_path.mkdir(parents=True, exist_ok=False)
+        except FileExistsError:
+            warnings.warn(
+                "Analysis folder already exists. Using existing analysis folder."
+            )
+            try:
+                self.load_existing()
+            except FileNotFoundError:
+                warnings.warn("No existing pipeline state found. Starting fresh.")
 
     def add_config(self, config: Loadable_Model) -> None:
         """
@@ -384,6 +397,46 @@ class Analysis_Pipeline:
             )
 
         print(f"Pipeline state saved to {self.configs[Recording_Config].output_folder}")
+
+    def load_existing(self):
+        task_json_path = (
+                self.root_output_folder / self.analysis_folder / "tasks_configs.json"
+        )
+        configs = []
+        with open(task_json_path, "r") as f:
+            task_dict = json.load(f)
+        analysis_folder = task_json_path.parent.name
+        for config_types in task_dict["config_types"]:
+            configs.append(
+                Analysis_Pipeline.CONFIG_REGISTRY[config_types].load_from_root_json(
+                    task_json_path.parent
+                )
+            )
+        tasks = []
+        for task_name in task_dict["tasks"]:
+            try:
+                tasks.append(Analysis_Pipeline.CALLABLES_REGISTRY[task_name])
+            except KeyError:
+                raise KeyError(
+                    f"💥 Pipeline Error: Task function '{task_name}' not found in CALLABLES_REGISTRY."
+                )
+        # update self
+        self.analysis_folder = analysis_folder
+        self.configs = {type(configs[0]): configs[0]}
+        for config in configs[1:]:
+            self.configs[type(config)] = config
+        self.config_filenames = [
+            config.JSON_FILENAME for config in self.configs.values()
+        ]
+        self.scheduled_functions = []
+        self._scheduled_function_names = []
+        for task in tasks:
+            self.schedule([task])
+        self._finished_tasks = task_dict.get("finished_tasks", [])
+        print(
+            f"Loaded Recording with following channels {self.configs[Recording_Config].channel_names}:"
+        )
+        print(f"Finished_tasks: {self._finished_tasks}")
 
     @classmethod
     def load(cls, task_json_path: Path) -> "Analysis_Pipeline":

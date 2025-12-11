@@ -81,10 +81,39 @@ def px_position_to_um(
     """
 
     position_um = position_px.assign_coords(
-        x=(position_px["x"] - noise_size_2d["x"] / 2) * pixel_size,
-        y=(position_px["y"] - noise_size_2d["y"] / 2) * pixel_size,
+        x=(position_px["x"] - noise_size_2d.loc["x"] / 2) * pixel_size,
+        y=(position_px["y"] - noise_size_2d.loc["y"] / 2) * pixel_size,
     )
     return position_um
+
+
+def px_int_to_um(
+        c_x: int, c_y: int, pixel_size: float, noise_size_2d: xr.DataArray
+) -> tuple[float, float]:
+    """
+    Convert integer pixel positions to micrometer positions. Position (0,0) is at the center of the noise stimulus, all
+    positions are relative to that, so can be negative.
+
+    Parameters
+    ----------
+    c_x : int
+        X position in pixels.
+    c_y : int
+        Y position in pixels.
+    pixel_size : float
+        Size of a pixel in micrometers.
+    noise_size_2d : xr.DataArray
+        Size of the noise stimulus in pixels (2D).
+    Returns
+    -------
+    tuple[float, float]
+        A tuple with positions in micrometers (x_um, y_um).
+
+    """
+
+    x_um = (c_x - noise_size_2d.loc["x"] / 2) * pixel_size
+    y_um = (c_y - noise_size_2d.loc["y"] / 2) * pixel_size
+    return x_um.values.item(), y_um.values.item()
 
 
 def um_position_to_px(
@@ -106,8 +135,8 @@ def um_position_to_px(
         An array of type int with positions in pixels.
     """
     position_px = position_um.assign_coords(
-        x=int((position_um["x"] / pixel_size) + (noise_size_2d["x"] / 2).round()),
-        y=int((position_um["y"] / pixel_size) + (noise_size_2d["y"] / 2).round()),
+        x=int((position_um["x"] / pixel_size) + (noise_size_2d.loc["x"] / 2).round()),
+        y=int((position_um["y"] / pixel_size) + (noise_size_2d.loc["y"] / 2).round()),
     )
     return position_px
 

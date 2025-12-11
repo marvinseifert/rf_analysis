@@ -577,6 +577,22 @@ files = [
 ]
 
 [[package]]
+name = "circle-fit"
+version = "0.2.1"
+description = "A Circle Fitting Library for Python"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "circle_fit-0.2.1-py3-none-any.whl", hash = "sha256:45c3813638e29354fd3b65eb9c03dea37125b31d2c8dad2e7f98c5edcdb2f428"},
+    {file = "circle_fit-0.2.1.tar.gz", hash = "sha256:54a8f361887fdcbcec15fd681e55051de7d4e8143e45353c082c58ba32e7dcb4"},
+]
+
+[package.dependencies]
+numpy = ">=1.21.0"
+scipy = "*"
+
+[[package]]
 name = "click"
 version = "8.2.1"
 description = "Composable command line interface toolkit"
@@ -5797,5 +5813,5 @@ cffi = ["cffi (>=1.11)"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = "==3.10.18"
-content-hash = "3c0832e6f03b9d47bf1ca238ee0b34e6d5aad4b792b838c4ae5e5ba7bf40fb68"
+python-versions = "==3.10.19"
+content-hash = "104326638e0870dc881105debf5d462a7f6c7f2fd8e06dc02be35a7a91d2e111"
