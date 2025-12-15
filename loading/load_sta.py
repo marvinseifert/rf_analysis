@@ -5,8 +5,10 @@ import numpy as np
 import xarray as xr
 from pathlib import Path
 from typing import Optional
+from functools import lru_cache
 
 
+@lru_cache(maxsize=10)
 def load_sta_as_xarray(
         sta_path: Path, dt_ms: float = 1.0, t_zero_index: Optional[int] = None
 ) -> xr.DataArray:
@@ -69,6 +71,7 @@ def _create_sta_dataarray(
     return sta_da
 
 
+@lru_cache(maxsize=10)
 def load_sta_subset(
         sta_path: Path,
         positions: Tuple[int, int],

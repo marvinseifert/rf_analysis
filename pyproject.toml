@@ -54,6 +54,7 @@ stnmf = "^1.1.0"
 imageio = { extras = ["ffmpeg"], version = "^2.37.2" }
 numpydantic = "^1.7.0"
 circle-fit = "^0.2.1"
+netcdf4 = "^1.7.3"
 
 
 [[tool.poetry.source]]

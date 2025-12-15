@@ -59,7 +59,7 @@ def isolate_central_island(matrix: np.ndarray) -> np.ndarray:
 
 
 def px_position_to_um(
-        position_px: xr.DataArray, pixel_size: float, noise_size_2d: xr.DataArray
+    position_px: xr.DataArray, pixel_size: float, noise_size_2d: xr.DataArray
 ) -> xr.DataArray:
     """
     Convert pixel positions to micrometer positions. Position (0,0) is at the center of the noise stimulus, all
@@ -88,7 +88,7 @@ def px_position_to_um(
 
 
 def px_int_to_um(
-        c_x: int, c_y: int, pixel_size: float, noise_size_2d: xr.DataArray
+    c_x: int, c_y: int, pixel_size: float, noise_size_2d: xr.DataArray
 ) -> tuple[float, float]:
     """
     Convert integer pixel positions to micrometer positions. Position (0,0) is at the center of the noise stimulus, all
@@ -117,7 +117,7 @@ def px_int_to_um(
 
 
 def um_position_to_px(
-        position_um: xr.DataArray, pixel_size: float, noise_size_2d: xr.DataArray
+    position_um: xr.DataArray, pixel_size: float, noise_size_2d: xr.DataArray
 ) -> xr.DataArray:
     """
     Convert micrometer positions back to pixel positions relative to the noise center.
@@ -142,7 +142,7 @@ def um_position_to_px(
 
 
 def locate_across_channels(
-        channel_paths: list[Path], threshold: float = 20, channel_names: list[str] = None
+    channel_paths: list[Path], threshold: float = 20, channel_names: list[str] = None
 ) -> tuple[Dataset, DataTree | Any]:
     """
     Loads the quality.npy files from all channels and computes the mean positions across cells.

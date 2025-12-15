@@ -23,6 +23,9 @@ from organize.decorators import depends_on
 from loading.load_sta import load_sta_as_xarray, sta_time_dimension
 import einops
 from location.locate import px_position_to_um, px_int_to_um
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from itertools import product
 
 
 def fill_defaults(recording_config, collapse_2d_config):
@@ -38,6 +41,7 @@ def fill_defaults(recording_config, collapse_2d_config):
     nr_cells = recording_config.overview.nr_cells
     nr_channels = recording_config.nr_channels
     cm_most_important_store = np.empty((nr_cells * nr_channels), dtype=object)
+    rms_store = np.empty_like(cm_most_important_store)
     sta_single_store = np.empty((nr_cells * nr_channels), dtype=object)
     iter_position = 0
     for cell_idx in range(nr_cells):
@@ -56,6 +60,21 @@ def fill_defaults(recording_config, collapse_2d_config):
                     .item(),
                 )
             )
+            rms_store[iter_position] = np.zeros(
+                (
+                    collapse_2d_config.cut_size_px[
+                        recording_config.channel_names[channel]
+                    ]
+                    .loc["x"]
+                    .item(),
+                    collapse_2d_config.cut_size_px[
+                        recording_config.channel_names[channel]
+                    ]
+                    .loc["y"]
+                    .item(),
+                )
+            )
+
             sta_single_store[iter_position] = np.zeros(
                 (
                     recording_config.channel_configs[
@@ -65,7 +84,7 @@ def fill_defaults(recording_config, collapse_2d_config):
             )
             iter_position += 1
     cell_sta_coordinates = np.empty((nr_cells, nr_channels), dtype=object)
-    return cm_most_important_store, sta_single_store, cell_sta_coordinates
+    return cm_most_important_store, sta_single_store, rms_store, cell_sta_coordinates
 
 
 @depends_on("calculate_rf_quality")
@@ -139,7 +158,9 @@ def sta_2d_cov_collapse(
         recording_config.root_path
         / recording_config.output_folder
         / analysis_folder
-        / "noise_data.nc"
+        / "noise_data.nc",
+        engine="netcdf4",
+        encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
     )
 
     # # %% Construct the results dataframe
@@ -178,25 +199,24 @@ def sta_2d_cov_collapse(
     #     / "noise_df.parquet"
     # )
 
-    cm_most_important_store, sta_single_store, cell_sta_coordinates = fill_defaults(
-        recording_config, collapse_2d_config
-    )
+    (
+        cm_most_important_store,
+        sta_single_store,
+        rms_store,
+        cell_sta_coordinates,
+    ) = fill_defaults(recording_config, collapse_2d_config)
 
     # %% Step two sta extension and covariance matrix
     # This is a for loop, because the data is too large for running in parallel.
     plot_trigger = 0
     store_position = 0
-    for cell_idx in tqdm(
-            range(recording_config.overview.nr_cells),
+
+    for cell_pos, cell_idx in tqdm(
+            enumerate(ds["cell_index"].to_numpy()),
+            total=ds.sizes["cell_index"],
             desc="Calculating covariance matrices",
     ):
-        # Select all data (quality, positions, sta_path) for the current cell_idx
-        try:
-            cell_data = ds.sel(cell_index=cell_idx)
-        except KeyError:
-            print(f"Cell index {cell_idx} not found in dataset, skipping.")
-            store_position += 1
-            continue
+        cell_data = ds.sel(cell_index=cell_idx)
         # Extract relevant info from the row
         for channel in recording_config.channel_names:
             channel_data = cell_data.sel(channel=channel)
@@ -219,13 +239,42 @@ def sta_2d_cov_collapse(
                     t_zero_index=recording_config.channel_configs[channel].total_sta_len
                                  - recording_config.channel_configs[channel].post_spike_bins,
                 )
+                # Test if max is in center
+                smooth_subset = smooth_ker(subset.values)
+                max_pos = np.unravel_index(
+                    np.argmax(np.var(smooth_subset, axis=0)), smooth_subset.shape
+                )
+                new_x, new_y = max_pos[1], max_pos[2]
+                shift_x = (
+                        new_x - collapse_2d_config.half_cut_size_px[channel].loc["x"].item()
+                )
+                shift_y = (
+                        new_y - collapse_2d_config.half_cut_size_px[channel].loc["y"].item()
+                )
+                # update positions
+                channel_data["positions"].values[0] += shift_x
+                channel_data["positions"].values[1] += shift_y
+                # Reload subset with updated positions
+                subset, c_x, c_y = load_sta_subset(
+                    recording_config.root_path / channel_data["sta_path"].item(),
+                    positions=tuple(channel_data["positions"].values.astype(int)),
+                    subset_size=tuple(
+                        [
+                            collapse_2d_config.cut_size_px[channel].loc["x"].item(),
+                            collapse_2d_config.cut_size_px[channel].loc["y"].item(),
+                        ]
+                    ),
+                    dt_ms=recording_config.channel_configs[channel].dt_ms,
+                    t_zero_index=recording_config.channel_configs[channel].total_sta_len
+                                 - recording_config.channel_configs[channel].post_spike_bins,
+                )
                 subset = px_position_to_um(
                     subset,
                     recording_config.channel_configs[channel].pixel_size,
                     collapse_2d_config.extended_cut_size_px[channel],
                 )
                 cell_sta_coordinates[
-                    cell_idx, recording_config.channel_names.index(channel)
+                    cell_pos, recording_config.channel_names.index(channel)
                 ] = xr.DataArray(
                     data=subset.var("time").values,
                     dims=["y", "x"],
@@ -274,6 +323,9 @@ def sta_2d_cov_collapse(
                     subset / nr_of_spikes - 0.5
             ).values  # shape: (time, h, w)
 
+            # calulcate rms
+            subset_rms = np.max((sta_per_spike_raw) ** 2, axis=0)
+            rms_store[store_position] = subset_rms.astype(np.float32, copy=False)
             time_bins, h, w = sta_per_spike_raw.shape
 
             flat = sta_per_spike_raw.reshape(time_bins, h * w).astype(
@@ -307,6 +359,7 @@ def sta_2d_cov_collapse(
             # Store STA time course of the selected pixel
             pix_y, pix_x = divmod(most_idx, w)
             sta_single_store[store_position] = sta_per_spike_raw[:, pix_y, pix_x] + 0.5
+            store_position += 1
 
         #
 
@@ -407,6 +460,8 @@ def sta_2d_cov_collapse(
     cm_final_array = np.full(
         (nr_cells, nr_channels, max_y_size_px, max_x_size_px), np.nan, dtype=np.float32
     )
+
+    rms_final = np.full_like(cm_final_array, np.nan, dtype=np.float32)
     # Prepare the final (N_cells, N_channels, Max_Time) array
     sta_final_array = np.full(
         (nr_cells, nr_channels, common_total_sta_length), np.nan, dtype=np.float32
@@ -414,6 +469,12 @@ def sta_2d_cov_collapse(
 
     cm_most_important_store = einops.rearrange(
         cm_most_important_store,
+        " (cell channel) y x -> cell channel y x ",
+        cell=nr_cells,
+        channel=nr_channels,
+    )
+    rms_store = einops.rearrange(
+        np.stack(rms_store, axis=0),
         " (cell channel) y x -> cell channel y x ",
         cell=nr_cells,
         channel=nr_channels,
@@ -444,6 +505,13 @@ def sta_2d_cov_collapse(
                 y_grid,
                 x_grid,
             ] = cm_most_important_store[cell_idx, channel_idx, :, :]
+            rms_final[
+                cell_idx,
+                channel_idx,
+                y_grid,
+                x_grid,
+            ] = rms_store[cell_idx, channel_idx, :, :]
+            # Place the sta time course at the correct time indices
             sta_final_array[cell_idx, channel_idx, :] = sta_single_store[
                 cell_idx, channel_idx, :
             ]
@@ -465,6 +533,7 @@ def sta_2d_cov_collapse(
         ("cell_index", "channel", "y" "", "x"),
         cm_final_array,
     )
+    ds["rms"] = (("cell_index", "channel", "y", "x"), rms_final)
     ds["sta_single_pixel"] = (
         ("cell_index", "channel", "time_max"),
         sta_final_array,
@@ -477,7 +546,9 @@ def sta_2d_cov_collapse(
         recording_config.root_path
         / recording_config.output_folder
         / analysis_folder
-        / "noise_data.nc"
+        / "noise_data.nc",
+        engine="netcdf4",
+        encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
     )
 
 
@@ -489,47 +560,84 @@ def circular_reduction(
         circular_reduction_config: "Circular_Reduction_Config",
         analysis_folder: str,
 ):
-    df = pl.read_parquet(
+    ds = xr.load_dataset(
         recording_config.root_path
         / recording_config.output_folder
         / analysis_folder
-        / "noise_df.parquet"
+        / "noise_data.nc",
     )
 
     # %%
 
     center_outline_store = xr.DataArray(
-        np.zeros((len(df), int(360 / circular_reduction_config.degree_bins))),
-        dims=["cell", "degree"],
+        np.zeros(
+            (
+                ds.cell_index.shape[0],
+                int(360 / circular_reduction_config.degree_bins),
+                ds.channel.shape[0],
+            )
+        ),
+        dims=["cell_index", "degree", "channel"],
         coords={
-            "cell": df["cell_index"].to_numpy(),
+            "cell_index": ds.cell_index.values,
             "degree": np.arange(0, 360, circular_reduction_config.degree_bins),
+            "channel": ds.channel.values,
         },
     )
     surround_outline_store = xr.full_like(center_outline_store, 0)
-    in_out_outline_store = (
-        []
-    )  # Need List, because radius can vary for different channels
-    center_std = np.zeros((len(df)))
-    surround_std = np.zeros_like(center_std)
+    max_radius = np.ceil(
+        np.max([radius.values for radius in collapse_2d_config.max_radius_px.values()])
+    ).astype(int)
+    in_out_outline_store = xr.DataArray(
+        np.zeros((ds.cell_index.shape[0], max_radius, ds.channel.shape[0])),
+        dims=["cell_index", "radius", "channel"],
+        coords={
+            "cell_index": ds.cell_index.values,
+            "radius": np.arange(0, max_radius),
+            "channel": ds.channel.values,
+        },
+    )
+    center_std = xr.DataArray(
+        np.zeros((ds.cell_index.shape[0], ds.channel.shape[0])),
+        dims=["cell_index", "channel"],
+        coords={
+            "cell_index": ds.cell_index.values,
+            "channel": ds.channel.values,
+        },
+    )
+    surround_std = xr.DataArray(
+        np.zeros((ds.cell_index.shape[0], ds.channel.shape[0])),
+        dims=["cell_index", "channel"],
+        coords={
+            "cell_index": ds.cell_index.values,
+            "channel": ds.channel.values,
+        },
+    )
+    channel_names = recording_config.channel_names
 
-    for row_idx, row in tqdm(
-            enumerate(df.iter_rows()),
-            total=len(df),
+    for (cell_position, cell_index), channel in tqdm(
+            product(enumerate(ds.cell_index), channel_names),
+            total=ds.cell_index.shape[0] * len(channel_names),
             desc="Performing circular reduction",
     ):
-        channel = row[df.get_column_index("channel")]
-        if row[df.get_column_index("quality")] < collapse_2d_config.threshold:
-            in_out_outline_store.append(
-                np.zeros(int(round(collapse_2d_config.max_radius_px[channel].item())))
-            )
+        if (  # Skip low quality cells
+                ds.sel(cell_index=cell_index, channel=channel).quality
+                < collapse_2d_config.threshold
+        ):
             continue
         center = (
             collapse_2d_config.half_cut_size_px[channel].loc["x"].item(),
             collapse_2d_config.half_cut_size_px[channel].loc["y"].item(),
         )
+        cm_most_important_unpadded = ds.sel(
+            cell_index=cell_index, channel=channel
+        ).cm_most_important.values[
+            ~np.isnan(
+                ds.sel(cell_index=cell_index, channel=channel).cm_most_important.values
+            )
+        ]
         polar_cm = polar_transform(
-            np.asarray(row[df.get_column_index("cm_most_important")]).reshape(
+            cm_most_important_unpadded.reshape(
                 collapse_2d_config.cut_size_px[channel].loc["y"].item(),
                 collapse_2d_config.cut_size_px[channel].loc["x"].item(),
             ),
@@ -562,38 +670,31 @@ def circular_reduction(
         entries_mean[np.isnan(entries_mean)] = 0
         entries_mean_neg[np.isnan(entries_mean_neg)] = 0
 
-        center_outline_store[row_idx, :] = entries_mean
-        surround_outline_store[row_idx, :] = entries_mean_neg
-        in_out_outline_store.append(np.mean(entries, axis=0))
+        center_outline_store.loc[
+            dict(cell_index=cell_index, channel=channel)
+        ] = entries_mean
+        surround_outline_store.loc[
+            dict(cell_index=cell_index, channel=channel)
+        ] = entries_mean_neg
+        in_out_outline_store.loc[
+            dict(cell_index=cell_index, channel=channel)
+        ] = np.mean(entries, axis=0)
 
-    # %% Add results to the dataframe
-    center_outline = pl.Series(
-        "center_outline",
-        center_outline_store.values,
-        dtype=pl.Array(pl.Float64, 360 // circular_reduction_config.degree_bins),
-    )
-    surround_outline = pl.Series(
-        "surround_outline",
-        surround_outline_store.values,
-        dtype=pl.Array(pl.Float64, 360 // circular_reduction_config.degree_bins),
-    )
-    in_out_outline = pl.Series(
-        "in_out_outline",
-        in_out_outline_store,
-        dtype=pl.List(pl.Float64),
-    )
-
-    nr_columns = len(df.columns)
-
-    for series_idx, series in enumerate(
-            [center_outline, surround_outline, in_out_outline]
-    ):
-        df.with_columns(series)
-
-    df.write_parquet(
+    # %% Add results to the datastore
+    ds["center_outline"] = center_outline_store
+    ds["surround_outline"] = surround_outline_store
+    ds["in_out_outline"] = in_out_outline_store
+    ds["center_std"] = center_std
+    ds["surround_std"] = surround_std
+    # Save the updated dataset
+    print("Finished circular reduction, saving dataset.")
+    ds.to_netcdf(
         recording_config.root_path
         / recording_config.output_folder
         / analysis_folder
-        / "noise_df.parquet"
+        / "noise_data.nc",
+        engine="netcdf4",
+        encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
     )
+
     return

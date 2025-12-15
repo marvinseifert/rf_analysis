@@ -22,6 +22,7 @@ from rf_analysis import calculate_quality
 import warnings
 from combined_analysis.reduce_all import sta_2d_cov_collapse, circular_reduction
 import numpy as np
+from stats.summary import calculate_stats
 
 
 # %%
@@ -261,6 +262,7 @@ class Analysis_Pipeline:
         "calculate_rf_quality": calculate_quality.calculate_rf_quality,
         "sta_2d_cov_collapse": sta_2d_cov_collapse,
         "circular_reduction": circular_reduction,
+        "calculate_stats": calculate_stats,
     }
 
     def __init__(

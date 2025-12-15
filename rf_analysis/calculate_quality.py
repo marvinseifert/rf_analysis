@@ -91,7 +91,11 @@ def quality_on_cells(
 # %%
 
 
-def calculate_rf_quality(recording_config: "Recording_Config", cpus: int = None):
+def calculate_rf_quality(
+        recording_config: "Recording_Config",
+        cpus: int = None,
+        analysis_folder: str = "rf_analysis",
+):
     # Check if parallel processing  is possible:
     if cpus is None:
         cpus = cpu_count()
