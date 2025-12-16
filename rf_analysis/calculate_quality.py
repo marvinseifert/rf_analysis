@@ -137,7 +137,11 @@ def calculate_rf_quality(
         # start pool
         pool = Pool(cpus)
         results = list(
-            tqdm.tqdm(pool.imap(func, chunks), total=len(chunks), desc="Processing")
+            tqdm.tqdm(
+                pool.imap(func, chunks),
+                total=len(chunks),
+                desc=f"Processing using {cpus} CPUs",
+            )
         )
         pool.close()
         pool.join()

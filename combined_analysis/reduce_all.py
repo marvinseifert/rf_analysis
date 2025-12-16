@@ -101,6 +101,7 @@ def sta_2d_cov_collapse(
         channel_roots,
         threshold=collapse_2d_config.threshold,
         channel_names=recording_config.channel_names,
+        channel_configs=recording_config.channel_configs,
     )
 
     # %% save into xarray Dataset
@@ -113,7 +114,7 @@ def sta_2d_cov_collapse(
     # The flatten("F") is correct for column-major (channel-fastest) storage,
     # BUT it must be reshaped back to 2D *after* flattening.
     quality_data = (
-        cell_qualities.sel(metrics="quality")["quality_metrics"]
+        cell_qualities.sel(metrics="quality")
         .to_numpy()  # This is likely 2D already (channel x cell_index) from xarray/polars
         .flatten("F")  # This flattens it 1D, Fortran-style (channel repeats first)
         .reshape(nr_cells, nr_channels, order="C")
@@ -125,7 +126,7 @@ def sta_2d_cov_collapse(
     # The positions data (original shape likely N_cells * N_channels x 2) must be condensed to one entry per cell.
     # Assuming positions["quality_metrics"].to_numpy() is (N_cells * N_channels, 2) and the positions are repeated per channel:
     # We take only the first channel's position slice, resulting in (N_cells, 2)
-    positions_data = positions["quality_metrics"].to_numpy()
+    # shape: (N_cells, 2)
 
     # 4. Reshape sta_path Data (Must be 2D: N_cells x N_channels)
     sta_paths_1d = np.array(
@@ -143,7 +144,13 @@ def sta_2d_cov_collapse(
             # ('cell_index', 'channel') shape is (N_cells, N_channels)
             "quality": (("cell_index", "channel"), quality_data),
             # ('cell_index', 'pos_dim') shape is (N_cells, 2)
-            "positions": (("cell_index", "pos_dim"), positions_data),
+            "positions": (
+                ("cell_index", "pos_dim", "channel"),
+                einops.rearrange(
+                    positions.to_numpy(),
+                    "channel cells positions -> cells positions channel",
+                ),
+            ),
             # ('cell_index', 'channel') shape is (N_cells, N_channels)
             "sta_path": (("cell_index", "channel"), sta_paths_2d),
         },
@@ -228,7 +235,9 @@ def sta_2d_cov_collapse(
                 # Load STA subset
                 subset, c_x, c_y = load_sta_subset(
                     recording_config.root_path / channel_data["sta_path"].item(),
-                    positions=tuple(channel_data["positions"].values.astype(int)),
+                    positions=tuple(
+                        positions.sel(channel=channel, cell_index=cell_idx).values
+                    ),
                     subset_size=tuple(
                         [
                             collapse_2d_config.cut_size_px[channel].loc["x"].item(),
@@ -519,9 +528,13 @@ def sta_2d_cov_collapse(
 
     # Add new dimensions and variables to the dataset
     ds = ds.assign_coords(
-        y=np.arange(max_y_size_px),
-        x=np.arange(max_x_size_px),
-        time_max=np.arange(common_total_sta_length),
+        y=y_coords_um,
+        x=x_coords_um,
+        time_max=np.arange(
+            -int(common_before_spike_ms / common_dt),
+            int(common_post_spike_time / common_dt),
+            1,
+        ),
     )
 
     # Note: These coordinates are not fully correct, as they don't map to physical units
@@ -614,76 +627,88 @@ def circular_reduction(
         },
     )
     channel_names = recording_config.channel_names
-
-    for (cell_position, cell_index), channel in tqdm(
-            product(enumerate(ds.cell_index), channel_names),
-            total=ds.cell_index.shape[0] * len(channel_names),
-            desc="Performing circular reduction",
-    ):
-        if (  # Skip low quality cells
-                ds.sel(cell_index=cell_index, channel=channel).quality
-                < collapse_2d_config.threshold
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for (cell_position, cell_index), channel in tqdm(
+                product(enumerate(ds.cell_index), channel_names),
+                total=ds.cell_index.shape[0] * len(channel_names),
+                desc="Performing circular reduction",
         ):
-            continue
-        center = (
-            collapse_2d_config.half_cut_size_px[channel].loc["x"].item(),
-            collapse_2d_config.half_cut_size_px[channel].loc["y"].item(),
-        )
-        cm_most_important_unpadded = ds.sel(
-            cell_index=cell_index, channel=channel
-        ).cm_most_important.values[
-            ~np.isnan(
-                ds.sel(cell_index=cell_index, channel=channel).cm_most_important.values
+            if (  # Skip low quality cells
+                    ds.sel(cell_index=cell_index, channel=channel).quality
+                    < collapse_2d_config.threshold
+            ):
+                continue
+            center = (
+                collapse_2d_config.half_cut_size_px[channel].loc["x"].item(),
+                collapse_2d_config.half_cut_size_px[channel].loc["y"].item(),
             )
-        ]
-        polar_cm = polar_transform(
-            cm_most_important_unpadded.reshape(
-                collapse_2d_config.cut_size_px[channel].loc["y"].item(),
-                collapse_2d_config.cut_size_px[channel].loc["x"].item(),
-            ),
-            center,
-            max_radius=int(round(collapse_2d_config.max_radius_px[channel].item())),
-        )
-        entries = []
-        for deg_step in range(0, 360, circular_reduction_config.degree_bins):
-            entries.append(
-                np.mean(
-                    polar_cm[
-                        deg_step: deg_step + circular_reduction_config.degree_bins,
-                        :,
-                    ],
-                    axis=0,
+            cm_most_important_unpadded = ds.sel(
+                cell_index=cell_index, channel=channel
+            ).cm_most_important.values[
+                ~np.isnan(
+                    ds.sel(
+                        cell_index=cell_index, channel=channel
+                    ).cm_most_important.values
                 )
+            ]
+            polar_cm = polar_transform(
+                cm_most_important_unpadded.reshape(
+                    collapse_2d_config.cut_size_px[channel].loc["y"].item(),
+                    collapse_2d_config.cut_size_px[channel].loc["x"].item(),
+                ),
+                center,
+                max_radius=int(round(collapse_2d_config.max_radius_px[channel].item())),
             )
-        entries = np.asarray(entries)
-        entries_pos = entries.copy()
-        entries_pos[entries_pos < 0] = 0
-        entries_mean = (
-                np.mean(entries_pos / np.max(entries_pos), axis=1) * entries_pos.shape[1]
-        )
+            entries = []
+            for deg_step in range(0, 360, circular_reduction_config.degree_bins):
+                entries.append(
+                    np.mean(
+                        polar_cm[
+                            deg_step: deg_step + circular_reduction_config.degree_bins,
+                            :,
+                        ],
+                        axis=0,
+                    )
+                )
+            entries = np.asarray(entries)
+            entries_pos = entries.copy()
+            entries_pos[entries_pos < 0] = 0
+            entries_mean = (
+                    np.mean(entries_pos / np.max(entries_pos), axis=1)
+                    * entries_pos.shape[1]
+            )
 
-        entries_neg = entries.copy()
-        entries_neg[entries_neg > 0] = 0
-        entries_mean_neg = (
-                np.mean(entries_neg / np.min(entries_neg), axis=1) * entries_neg.shape[1]
-        )
-        entries_mean[np.isnan(entries_mean)] = 0
-        entries_mean_neg[np.isnan(entries_mean_neg)] = 0
+            entries_neg = entries.copy()
+            entries_neg[entries_neg > 0] = 0
+            entries_mean_neg = (
+                    np.mean(entries_neg / np.min(entries_neg), axis=1)
+                    * entries_neg.shape[1]
+            )
+            entries_mean[np.isnan(entries_mean)] = 0
+            entries_mean_neg[np.isnan(entries_mean_neg)] = 0
 
-        center_outline_store.loc[
-            dict(cell_index=cell_index, channel=channel)
-        ] = entries_mean
-        surround_outline_store.loc[
-            dict(cell_index=cell_index, channel=channel)
-        ] = entries_mean_neg
-        in_out_outline_store.loc[
-            dict(cell_index=cell_index, channel=channel)
-        ] = np.mean(entries, axis=0)
+            center_outline_store.loc[
+                dict(cell_index=cell_index, channel=channel)
+            ] = entries_mean
+            surround_outline_store.loc[
+                dict(cell_index=cell_index, channel=channel)
+            ] = entries_mean_neg
+            in_out_outline_store.loc[
+                dict(cell_index=cell_index, channel=channel)
+            ] = np.mean(entries, axis=0)
 
+    min_pixel_size = np.min(
+        [
+            recording_config.channel_configs[channel].pixel_size
+            for channel in recording_config.channel_configs
+        ]
+    )
     # %% Add results to the datastore
-    ds["center_outline"] = center_outline_store
-    ds["surround_outline"] = surround_outline_store
-    ds["in_out_outline"] = in_out_outline_store
+    ds["center_outline_um"] = center_outline_store * min_pixel_size
+    ds["surround_outline_um"] = surround_outline_store * min_pixel_size
+    ds["in_out_outline_um"] = in_out_outline_store.assign_coords(
+        radius=in_out_outline_store.radius.values * min_pixel_size
+    )
     ds["center_std"] = center_std
     ds["surround_std"] = surround_std
     # Save the updated dataset

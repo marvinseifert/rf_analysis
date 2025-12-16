@@ -64,6 +64,23 @@ files = [
 ]
 
 [[package]]
+name = "aquarel"
+version = "0.0.7"
+description = "Lightweight templating engine for matplotlib"
+optional = false
+python-versions = ">3.7"
+groups = ["main"]
+files = [
+    {file = "aquarel-0.0.7-py3-none-any.whl", hash = "sha256:908c800494f6b18e316cfb7aa63f4ed0c783f66b8e39bbf587fce0b185c590f0"},
+    {file = "aquarel-0.0.7.tar.gz", hash = "sha256:6cae3f82c4bc02ed11e368e15e9575b4f007e937be9825d24f8eaa8d8b1fdb02"},
+]
+
+[package.dependencies]
+cycler = "*"
+matplotlib = ">=3.4.0"
+seaborn = "*"
+
+[[package]]
 name = "argon2-cffi"
 version = "25.1.0"
 description = "Argon2 for Python"
@@ -5888,4 +5905,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "==3.10.19"
-content-hash = "92680b6ce02e72e6c3f5c5c0b6afc56d77e39120562ab45e4e29fd6ec4b591d2"
+content-hash = "77359aaa308efd655ef1c0af21ebb23c60bd872f0a9fafacdf839a0872e80a56"

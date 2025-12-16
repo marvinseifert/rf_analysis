@@ -8,6 +8,8 @@ from xarray import Dataset, DataTree
 from graph.build_graph import array_to_graph
 import xarray as xr
 from pathlib import Path
+import math
+from typing import List
 
 
 def identify_center(sta_std: np.ndarray) -> tuple[int, int]:
@@ -59,7 +61,11 @@ def isolate_central_island(matrix: np.ndarray) -> np.ndarray:
 
 
 def px_position_to_um(
-    position_px: xr.DataArray, pixel_size: float, noise_size_2d: xr.DataArray
+        position_px: xr.DataArray,
+        pixel_size: float,
+        noise_size_2d: xr.DataArray,
+        x_key="x",
+        y_key="y",
 ) -> xr.DataArray:
     """
     Convert pixel positions to micrometer positions. Position (0,0) is at the center of the noise stimulus, all
@@ -81,14 +87,14 @@ def px_position_to_um(
     """
 
     position_um = position_px.assign_coords(
-        x=(position_px["x"] - noise_size_2d.loc["x"] / 2) * pixel_size,
-        y=(position_px["y"] - noise_size_2d.loc["y"] / 2) * pixel_size,
+        x=(position_px[x_key] - noise_size_2d.loc["x"] / 2) * pixel_size,
+        y=(position_px[y_key] - noise_size_2d.loc["y"] / 2) * pixel_size,
     )
     return position_um
 
 
 def px_int_to_um(
-    c_x: int, c_y: int, pixel_size: float, noise_size_2d: xr.DataArray
+        c_x: int, c_y: int, pixel_size: float, noise_size_2d: xr.DataArray
 ) -> tuple[float, float]:
     """
     Convert integer pixel positions to micrometer positions. Position (0,0) is at the center of the noise stimulus, all
@@ -117,7 +123,11 @@ def px_int_to_um(
 
 
 def um_position_to_px(
-    position_um: xr.DataArray, pixel_size: float, noise_size_2d: xr.DataArray
+        position_um: xr.DataArray,
+        pixel_size: float,
+        noise_size_2d: xr.DataArray,
+        x_key="x",
+        y_key="y",
 ) -> xr.DataArray:
     """
     Convert micrometer positions back to pixel positions relative to the noise center.
@@ -129,21 +139,32 @@ def um_position_to_px(
         Size of a pixel in micrometers.
     noise_size_2d : xr.DataArray
         Size of the noise stimulus in pixels (2D).
+    x_key : str
+        Key for the x dimension.
+    y_key : str
+        Key for the y dimension.
     Returns
     -------
     xr.DataArray
         An array of type int with positions in pixels.
     """
     position_px = position_um.assign_coords(
-        x=int((position_um["x"] / pixel_size) + (noise_size_2d.loc["x"] / 2).round()),
-        y=int((position_um["y"] / pixel_size) + (noise_size_2d.loc["y"] / 2).round()),
+        x=int(
+            (position_um[x_key] / pixel_size) + (noise_size_2d.loc[x_key] / 2).round()
+        ),
+        y=int(
+            (position_um[y_key] / pixel_size) + (noise_size_2d.loc[y_key] / 2).round()
+        ),
     )
     return position_px
 
 
 def locate_across_channels(
-    channel_paths: list[Path], threshold: float = 20, channel_names: list[str] = None
-) -> tuple[Dataset, DataTree | Any]:
+        channel_paths: list[Path],
+        threshold: float = 20,
+        channel_names: list[str] = None,
+        channel_configs: dict = None,
+) -> tuple[xr.DataArray, xr.DataArray]:
     """
     Loads the quality.npy files from all channels and computes the mean positions across cells.
     Parameters
@@ -154,6 +175,8 @@ def locate_across_channels(
         Quality threshold below which weights are set to a small value.
     channel_names : list[str], optional
         List of channel names corresponding to the channel paths.
+    channel_configs : dict, optional
+        Dictionary of channel configurations.
     Returns
     -------
     tuple[xr.DataArray, xr.DataArray]
@@ -165,10 +188,7 @@ def locate_across_channels(
 
     # 1. INITIAL SETUP: Load the first channel and prepare it
     # Load the first channel's data
-    first_channel_data = xr.load_dataset(channel_paths[0] / "quality.nc")
-    first_channel_data = first_channel_data.rename_vars(
-        {"__xarray_dataarray_variable__": "quality_metrics"}
-    )
+    first_channel_data = xr.load_dataarray(channel_paths[0] / "quality.nc")
     # Ensure the 'channel' coordinate exists on the first data item
     if channel_names:
         first_channel_data = first_channel_data.assign_coords(
@@ -182,10 +202,7 @@ def locate_across_channels(
 
     # 2. LOAD AND COLLECT ALL REMAINING CHANNEL DATA
     for i, channel_path in enumerate(channel_paths[1:], start=1):
-        quality_array = xr.load_dataset(channel_path / "quality.nc")
-        quality_array = quality_array.rename_vars(
-            {"__xarray_dataarray_variable__": "quality_metrics"}
-        )
+        quality_array = xr.load_dataarray(channel_path / "quality.nc")
         # Assign the correct channel name coordinate if available
         if channel_names:
             quality_array = quality_array.assign_coords(channel=channel_names[i])
@@ -209,38 +226,84 @@ def locate_across_channels(
 
     # Apply the threshold: set all weights below the threshold to 0.0
     # This is the correct way to exclude "bad" measurements.
-    weights_masked = xr.where(weights_raw < threshold, 1e-6, weights_raw)
+    weights_masked = xr.where(weights_raw < threshold, 1e-6, weights_raw).values
+    weights_masked = np.tile(weights_masked[:, :, np.newaxis], (1, 1, 2))
 
     # Expand weights to match the 2 (x,y) dimensions for np.average
     # Shape becomes: (nr_cells, 2, nr_channels)
     position_metrics = ["center_x", "center_y"]
     position_data = final_quality_array.sel(metrics=position_metrics)
 
-    # 3a. Weighted Sum:
-    # The weight array (cell, channel) automatically broadcasts across the metrics dimension (x, y)
-    # Weighted_sum has dimensions (cell, metrics)
-    weighted_sum = (position_data * weights_masked).sum(dim="channel")
+    # Convert pixel positions to micrometer positions for each channel
+    for channel in channel_names:
+        position_data.loc[dict(metrics="center_x", channel=channel)] = (
+                                                                               position_data.sel(metrics="center_x",
+                                                                                                 channel=channel)
+                                                                               -
+                                                                               channel_configs[channel].image_shape.loc[
+                                                                                   "x"].item() / 2
+                                                                       ) * channel_configs[channel].pixel_size
+        position_data.loc[dict(metrics="center_y", channel=channel)] = (
+                                                                               position_data.sel(metrics="center_y",
+                                                                                                 channel=channel)
+                                                                               -
+                                                                               channel_configs[channel].image_shape.loc[
+                                                                                   "y"].item() / 2
+                                                                       ) * channel_configs[channel].pixel_size
 
-    # 3b. Total Weight:
-    # Total_weights has dimensions (cell)
-    total_weights = weights_masked.sum(dim="channel")
+    #
 
-    # 3c. Calculate Mean:
-    # We divide the weighted sum by the total weights.
-    # total_weights (cell) automatically broadcasts across the metrics dimension (x, y)
-    # during the division.
-    mean_positions = weighted_sum / total_weights
-    # Optional: Handle the case where a cell has 0 total weight (returns NaN)
-    # --- 4. HANDLE ZERO TOTAL WEIGHT ---
+    # Weighted average
+    average_position = np.average(position_data, axis=0, weights=weights_masked)
+    # We need to expand average_positions to all channels because they might have different image sizes and pixel sizes
+    average_position = np.tile(
+        average_position[np.newaxis, :, :], (len(channel_names), 1, 1)
+    )
+    # Prepare the final mean positions DataArray
+    average_position = xr.DataArray(
+        data=average_position,
+        dims=["channel", "cell_index", "metrics"],
+        coords={
+            "channel": channel_names,
+            "cell_index": final_quality_array.cell_index,
+            "metrics": position_metrics,
+        },
+    )
+    for channel in channel_names:
+        average_position.loc[dict(metrics="center_x", channel=channel)] = (
+            (
+                    average_position.sel(metrics="center_x", channel=channel)
+                    / channel_configs[channel].pixel_size
+                    + channel_configs[channel].image_shape.loc["x"].item() / 2
+            )
+            .round()
+            .fillna(0)
+            .clip(0, channel_configs[channel].image_shape.loc["x"].item() - 1)
+        )
+        average_position.loc[dict(metrics="center_y", channel=channel)] = (
+            (
+                    average_position.sel(metrics="center_y", channel=channel)
+                    / channel_configs[channel].pixel_size
+                    + channel_configs[channel].image_shape.loc["y"].item() / 2
+            )
+            .round()
+            .fillna(0)
+            .clip(0, channel_configs[channel].image_shape.loc["y"].item() - 1)
+        )
+    average_position = average_position.astype(int)
+    return final_quality_array, average_position
 
-    # Identify cells where the total weight is zero
-    no_weight_mask = total_weights == 0
 
-    # Get the fallback position from the first channel (channel index 0)
-    # Fallback_position has dimensions (cell, metrics)
-    fallback_position = position_data.isel(channel=0).drop_vars("channel")
-
-    # Use xr.where() to replace NaN (or arbitrary result) positions with the fallback position
-    final_mean_positions = xr.where(no_weight_mask, fallback_position, mean_positions)
-
-    return final_quality_array, final_mean_positions
+def project_radii_to_xy(radii: List[float]) -> np.ndarray:
+    n = len(radii)
+    delta_theta = (2 * math.pi) / n
+    x_coords = []
+    y_coords = []
+    for i in range(n):
+        theta = i * delta_theta
+        r = radii[i]
+        x = r * math.cos(theta)
+        y = r * math.sin(theta)
+        x_coords.append(x)
+        y_coords.append(y)
+    return np.column_stack((x_coords, y_coords))

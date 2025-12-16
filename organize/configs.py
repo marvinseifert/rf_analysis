@@ -505,3 +505,5 @@ class Analysis_Pipeline:
             print(f"\n=== Running: {func_name} ===")
             func()
             self._finished_tasks.append(func_name)
+            # save after each task
+            self.save()

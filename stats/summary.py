@@ -114,14 +114,14 @@ def calculate_stats(
             center_size = [
                 calculate_radial_area(
                     ds.sel(cell_index=cell_index, channel=channel)[
-                        "center_outline"
+                        "center_outline_um"
                     ].values.tolist()
                 )
             ]
             surround_size = [
                 calculate_radial_area(
                     ds.sel(cell_index=cell_index, channel=channel)[
-                        "surround_outline"
+                        "surround_outline_um"
                     ].values.tolist()
                 )
             ]
@@ -139,7 +139,7 @@ def calculate_stats(
 
             positions = project_radii_to_xy(
                 ds.sel(cell_index=cell_index, channel=channel)[
-                    "center_outline"
+                    "center_outline_um"
                 ].values.tolist()
             )
 
