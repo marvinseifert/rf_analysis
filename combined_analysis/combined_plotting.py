@@ -213,10 +213,10 @@ fig.show()
 best_cell = sorted_cells[3]  # dataset["quality"].argmax("cell_index").values[0]
 best_cell_data = dataset.sel(cell_index=best_cell)
 # 3rd column needs to be polar plot of locations
-column_ratios = [1.5, 1.5, 1, 1, 1, 1]
+column_ratios = [1.5, 1.5, 1, 1, 1, 1, 1]
 
 fig, axs = plt.subplots(
-    ncols=6,
+    ncols=7,
     nrows=2,
     figsize=(25, 10),
     sharex="col",
@@ -225,13 +225,13 @@ fig, axs = plt.subplots(
     gridspec_kw={"width_ratios": column_ratios},
 )
 axs[0, 2].remove()
-axs[0, 2] = fig.add_subplot(2, 6, 3, projection="polar")
+axs[0, 2] = fig.add_subplot(2, 7, 3, projection="polar")
 axs[0, 3].remove()
-axs[0, 3] = fig.add_subplot(2, 6, 4, projection="polar")
+axs[0, 3] = fig.add_subplot(2, 7, 4, projection="polar")
 axs[1, 2].remove()
-axs[1, 2] = fig.add_subplot(2, 6, 9, projection="polar")
+axs[1, 2] = fig.add_subplot(2, 7, 10, projection="polar")
 axs[1, 3].remove()
-axs[1, 3] = fig.add_subplot(2, 6, 10, projection="polar")
+axs[1, 3] = fig.add_subplot(2, 7, 11, projection="polar")
 for c_idx, channel in enumerate(dataset.channel.values):
     cutout_nans(best_cell_data.sel(channel=channel)["rms"]).plot.imshow(
         ax=axs[c_idx, 0],
@@ -324,6 +324,18 @@ for c_idx, channel in enumerate(dataset.channel.values):
     # plot dotted line at time 0
     axs[c_idx, 5].axvline(0, color="black", linestyle="--")
 
+    stats_text = (
+        f"Quality: {best_cell_data.sel(channel=channel)['quality'].item():.2f}\n\n"
+        f"Center Size (mm²): {best_cell_data.sel(channel=channel)['center_size_mm2'].item():.2e}\n\n"
+        f"Surround Size (mm²): {best_cell_data.sel(channel=channel)['surround_size_mm2'].item():.2e}\n\n"
+        f"TIR (um): {best_cell_data.sel(channel=channel)['tir'].item():.2f}\n\n"
+        f"Center Shift (um): {best_cell_data.sel(channel=channel)['center_shift'].item():.2f}\n\n"
+        f"Tilt: {best_cell_data.sel(channel=channel)['tilt'].item():.2f}\n\n"
+        f"Angle (deg): {best_cell_data.sel(channel=channel)['angle'].item():.2f}\n"
+    )
+    axs[c_idx, 6].text(0.1, 0.5, stats_text, fontsize=12, va="center")
+    axs[c_idx, 6].axis("off")
+
     if c_idx == 0:
         axs[c_idx, 0].set_title(f"RMS", y=1.05)
         axs[c_idx, 1].set_title(f"covariance map", y=1.05)
@@ -331,6 +343,7 @@ for c_idx, channel in enumerate(dataset.channel.values):
         axs[c_idx, 3].set_title(f"surround outline", y=1.5)
         axs[c_idx, 4].set_title(f"in-out outline", y=1.05)
         axs[c_idx, 5].set_title(f"STA single pixel", y=1.05)
+        axs[c_idx, 6].set_title(f"Statistics", y=1.05)
     # remove titles for all but first row
     else:
         axs[c_idx, 0].set_title("")
@@ -339,6 +352,7 @@ for c_idx, channel in enumerate(dataset.channel.values):
         axs[c_idx, 3].set_title("")
         axs[c_idx, 4].set_title("")
         axs[c_idx, 5].set_title("")
+        axs[c_idx, 6].set_title("")
 # need to increase the margin between subplots
 fig.subplots_adjust(hspace=0.4, wspace=0.4)
 fig.show()
