@@ -75,7 +75,7 @@ def fill_defaults(  # noqa: F821  # noqa: F821
         - cell_sta_coordinates: An array to store STA coordinates for each cell and channel.
 
     """
-    nr_cells = recording_config.overview.nr_cells
+    nr_cells = np.max(recording_config.overview.spikes_df["cell_index"]) + 1
     nr_channels = recording_config.nr_channels
     cm_most_important_store = np.empty((nr_cells * nr_channels), dtype=object)
     rms_store = np.empty_like(cm_most_important_store)
@@ -148,7 +148,7 @@ def sta_2d_cov_collapse(
     channel_roots = [
         channel["root_path"] for channel in recording_config.channel_configs.values()
     ]
-    nr_cells = recording_config.overview.nr_cells
+    nr_cells = np.max(recording_config.overview.spikes_df["cell_index"]) + 1
     nr_channels = recording_config.nr_channels
 
     # 2. Locate cells across channels
@@ -225,9 +225,9 @@ def sta_2d_cov_collapse(
         desc="Calculating covariance matrices",
     ):
         # Loop over channels
-        for channel in recording_config.channel_names:
+        for channel_index, channel in enumerate(recording_config.channel_names):
             channel_data = ds.sel(cell_index=cell_idx, channel=channel)
-
+            flat_idx = cell_idx * nr_channels + channel_index
             # Skip low quality cells
             if np.isnan(channel_data["quality"].item()):
                 continue
@@ -245,9 +245,7 @@ def sta_2d_cov_collapse(
             if result is None:
                 continue
             subset, c_x, c_y, var_coordinates = result
-            cell_sta_coordinates[
-                cell_pos, recording_config.channel_names.index(channel)
-            ] = var_coordinates
+            cell_sta_coordinates[cell_idx, channel_index] = var_coordinates
             # update positions
             positions.loc[dict(cell_index=cell_idx, channel=channel)] = xr.DataArray(
                 data=np.array([c_x, c_y]),
@@ -268,7 +266,7 @@ def sta_2d_cov_collapse(
                 f"stimulus_index=={stimulus_id}&cell_index=={cell_idx}"
             )["nr_of_spikes"].values[0]
             sta_per_spike_raw, rms = calculate_rms(subset, nr_of_spikes)
-            rms_store[cell_pos] = rms.values.astype(np.float32, copy=False)
+            rms_store[flat_idx] = rms.values.astype(np.float32, copy=False)
             time_bins, h, w = sta_per_spike_raw.shape
 
             # 9. Reshape data for SVD
@@ -291,10 +289,12 @@ def sta_2d_cov_collapse(
                     w,
                 ),
             )
-            cm_most_important_store[cell_pos] = cov_with_most
+            cm_most_important_store[flat_idx] = cov_with_most
             # Store STA time course of the selected pixel
             pix_y, pix_x = divmod(most_idx, w)
-            sta_single_store[cell_pos] = sta_per_spike_raw[:, pix_y, pix_x] + 0.5
+            sta_single_store[flat_idx] = (
+                sta_per_spike_raw[:, pix_y, pix_x] + 0.5
+            ).values
 
     # Data reshaping for optimap storing.
     # If the data are from noise with different pixel sizes, we need to interpolate them to the same coordinate system.
@@ -328,6 +328,7 @@ def sta_2d_cov_collapse(
         )
     else:
         common_dt = channel_dt[0]
+        sta_single_store[568] = sta_single_store[568][60:160]
         sta_single_store = np.stack(sta_single_store, axis=0)
 
     # Determine duration in ms of sta before the spike

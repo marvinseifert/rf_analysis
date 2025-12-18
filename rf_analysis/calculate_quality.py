@@ -12,7 +12,7 @@ from loading.load_sta import _create_sta_dataarray
 
 
 def quality_on_cells(
-        folder: Path, cell_ids: List, dt_ms: float = 1.0, t_zero_index: int = 0
+    folder: Path, cell_ids: List, dt_ms: float = 1.0, t_zero_index: int = 0
 ):
     quality = np.zeros((len(cell_ids), 4))
     quality = xr.DataArray(
@@ -92,9 +92,9 @@ def quality_on_cells(
 
 
 def calculate_rf_quality(
-        recording_config: "Recording_Config",
-        cpus: int = None,
-        analysis_folder: str = "rf_analysis",
+    recording_config: "Recording_Config",
+    cpus: int = None,
+    analysis_folder: str = "rf_analysis",
 ):
     # Check if parallel processing  is possible:
     if cpus is None:
@@ -127,8 +127,9 @@ def calculate_rf_quality(
         folder = recording_config.channel_configs[channel].root_path
         nr_folders = len([f for f in folder.iterdir() if f.is_dir()])
         cpus = cpu_count()
-        cell_ids = recording_config.overview.spikes_df["cell_index"].unique()
-        chunk_size = len(cell_ids) // cpus
+        cell_ids = np.arange(
+            0, recording_config.overview.spikes_df["cell_index"].max() + 1
+        )
         chunks = np.array_split(cell_ids, cpus)
 
         # Create partial function

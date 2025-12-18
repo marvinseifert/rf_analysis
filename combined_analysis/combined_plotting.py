@@ -44,7 +44,7 @@ rec_config = Recording_Config.load_from_root_json(path_to_data.parent)
 # %%
 # look for cell with max quality and plot it
 # This plot plots rfs of channels side by side for the best cell
-
+dataset["quality"] = dataset["quality"].fillna(0)
 best_cell = dataset["cell_index"][
     dataset["quality"].mean(dim="channel").argmax("cell_index")
 ]
