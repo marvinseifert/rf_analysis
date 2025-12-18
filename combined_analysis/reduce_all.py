@@ -557,11 +557,14 @@ def circular_reduction(
             total=ds.cell_index.shape[0] * len(channel_names),
             desc="Performing circular reduction",
         ):
+            if np.isnan(ds.sel(cell_index=cell_index, channel=channel).quality):
+                continue
             if (  # Skip low quality cells
                 ds.sel(cell_index=cell_index, channel=channel).quality
                 < collapse_2d_config.threshold
             ):
                 continue
+
             center = (
                 collapse_2d_config.half_cut_size_px[channel].loc["x"].item(),
                 collapse_2d_config.half_cut_size_px[channel].loc["y"].item(),
