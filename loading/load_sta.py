@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Tuple
 from location.border import check_border_constrains
 from location.channel_handling import masking_square
@@ -5,12 +6,14 @@ import numpy as np
 import xarray as xr
 from pathlib import Path
 from typing import Optional
-from functools import lru_cache
+from functools import lru_cache, partial
+from smoothing.gaussian import smooth_ker
+from location.locate import px_position_to_um
 
 
 @lru_cache(maxsize=10)
 def load_sta_as_xarray(
-        sta_path: Path, dt_ms: float = 1.0, t_zero_index: Optional[int] = None
+    sta_path: Path, dt_ms: float = 1.0, t_zero_index: Optional[int] = None
 ) -> xr.DataArray:
     """
     Load STA data from a .npy file and convert it to a labeled xarray.DataArray
@@ -47,7 +50,7 @@ def load_sta_as_xarray(
 
 
 def _create_sta_dataarray(
-        sta_data_np: np.ndarray, dt_ms: float, t_zero_index: Optional[int]
+    sta_data_np: np.ndarray, dt_ms: float, t_zero_index: Optional[int]
 ) -> xr.DataArray:
     T, H, W = sta_data_np.shape
     t_zero = 0 if t_zero_index is None else t_zero_index
@@ -73,11 +76,11 @@ def _create_sta_dataarray(
 
 @lru_cache(maxsize=10)
 def load_sta_subset(
-        sta_path: Path,
-        positions: Tuple[int, int],
-        subset_size: Tuple[int, int],
-        dt_ms: float = 10.0,
-        t_zero_index: Optional[int] = 100,
+    sta_path: Path,
+    positions: Tuple[int, int],
+    subset_size: Tuple[int, int],
+    dt_ms: float = 10.0,
+    t_zero_index: Optional[int] = 100,
 ) -> Tuple[xr.DataArray, float, float]:
     """
     Load a padded STA, extract a masked window, and return the subset along with updated center coordinates.
@@ -162,7 +165,7 @@ def load_sta_subset(
 
 
 def sta_time_dimension(
-        total_nr_bins: int = 100, dt_ms: float = 1.0, t_zero: int = 0
+    total_nr_bins: int = 100, dt_ms: float = 1.0, t_zero: int = 0
 ) -> np.ndarray:
     """
     Calculates time coordinates for STA data given number of bins, time step, and zero index.
@@ -183,3 +186,82 @@ def sta_time_dimension(
     time_indices = np.arange(total_nr_bins)
     time_coords = (time_indices - t_zero) * dt_ms
     return time_coords
+
+
+def load_and_realign_center(
+    recording_config: "Recording_Config",
+    collapse_2d_config: "Collapse_2d_Config",
+    cell_idx: int,
+    channel: str,
+    x_y_positions: xr.DataArray,
+) -> Tuple[xr.DataArray, float, float, xr.DataArray] | None:
+    """
+    Load STA subset and realign center based on maximum variance position.
+    Parameters
+    ----------
+    recording_config : Recording_Config
+        Configuration object containing recording parameters.
+    collapse_2d_config : Collapse_2d_Config
+        Configuration object for 2D collapse parameters.
+    cell_idx : int
+        Index of the cell to load.
+    channel : str
+        Channel identifier.
+    x_y_positions : xr.DataArray
+        Initial x and y positions of the cell.
+    Returns
+    -------
+    Tuple[xr.DataArray, float, float, xr.DataArray]
+        The STA subset, updated c_x, updated c_y, and variance coordinates.
+
+
+    """
+    channel_root = recording_config.channel_configs[channel].root_path
+    sta_path = channel_root / f"cell_{cell_idx}/kernel.npy"
+    load_sta_subset_partial = partial(
+        load_sta_subset,
+        sta_path=sta_path,
+        subset_size=tuple(
+            [
+                collapse_2d_config.cut_size_px[channel].loc["x"].item(),
+                collapse_2d_config.cut_size_px[channel].loc["y"].item(),
+            ]
+        ),
+        dt_ms=recording_config.channel_configs[channel].dt_ms,
+        t_zero_index=recording_config.channel_configs[channel].total_sta_len
+        - recording_config.channel_configs[channel].post_spike_bins,
+    )
+
+    try:
+        subset, c_x, c_y = load_sta_subset_partial(
+            positions=tuple(x_y_positions.values)
+        )
+        # Test if max is in center
+        smooth_subset = smooth_ker(subset.values)
+        max_pos = np.unravel_index(
+            np.argmax(np.var(smooth_subset, axis=0)), smooth_subset.shape
+        )
+        new_x, new_y = max_pos[1], max_pos[2]
+        shift_x = new_x - collapse_2d_config.half_cut_size_px[channel].loc["x"].item()
+        shift_y = new_y - collapse_2d_config.half_cut_size_px[channel].loc["y"].item()
+        # update positions
+        x_y_positions.values[0] += shift_x
+        x_y_positions.values[1] += shift_y
+        # Reload subset with updated positions
+        subset, c_x, c_y = load_sta_subset_partial(
+            positions=tuple(x_y_positions.values.astype(int))
+        )
+        subset = px_position_to_um(
+            subset,
+            recording_config.channel_configs[channel].pixel_size,
+            collapse_2d_config.extended_cut_size_px[channel],
+        )
+        var_coordinates = xr.DataArray(
+            data=subset.var("time").values,
+            dims=["y", "x"],
+            coords={"x": subset.coords["x"], "y": subset.coords["y"]},
+        )
+        return subset, c_x, c_y, var_coordinates
+    except FileNotFoundError:
+        print(f"File not found for item {cell_idx}")
+        return None

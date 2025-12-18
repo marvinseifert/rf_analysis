@@ -1,41 +1,78 @@
 from __future__ import annotations
-import polars as pl
-import numpy as np
-from pathlib import Path
-import pickle
-from polars import from_numpy
-from dim_reduction.circular_reduction import polar_transform
-from location.channel_handling import masking_square
-from polarspike import Overview
-from tqdm import tqdm
+
 import warnings
-from rf_torch.parameters import Noise_Params
-import matplotlib.pyplot as plt
-from smoothing.gaussian import smooth_ker
-from covariance.filtering import cov_filtering_sum
-from location.border import check_border_constrains
-from loading.load_sta import load_sta_subset
-import xarray as xr
-from location.x_array import x_y_and_scale
-from location.locate import locate_across_channels
-from importlib import reload
-from organize.decorators import depends_on
-from loading.load_sta import load_sta_as_xarray, sta_time_dimension
-import einops
-from location.locate import px_position_to_um, px_int_to_um
-import threading
-from concurrent.futures import ThreadPoolExecutor
 from itertools import product
 
+import einops
+import numpy as np
+import xarray as xr
+from tqdm import tqdm
 
-def fill_defaults(recording_config, collapse_2d_config):
+from dim_reduction.circular_reduction import polar_transform
+from loading.load_sta import load_and_realign_center
+from location.locate import locate_across_channels
+from location.x_array import x_y_and_scale
+from organize.decorators import depends_on
+import matplotlib.pyplot as plt
+from location.locate import px_int_to_um
+from dim_reduction.rms_error import calculate_rms
+from dim_reduction.covariance import calculate_covariance
+
+
+def plot_sanity_fig(
+    subset: xr.DataArray,
+    c_x: int,
+    c_y: int,
+    channel: str,
+    recording_config: "Recording_Config",
+    collapse_2d_config: "Collapse_2d_Config",
+):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ishow = subset.var("time").plot.imshow(
+        ax=ax,
+        cmap="gray",
+        x="x",
+        y="y",
+        cbar_kwargs={"shrink": 0.5},
+    )
+    ax.set_aspect("equal")
+    ax.set_title("Sanity plot subset")
+    c_x_um, c_y_um = px_int_to_um(
+        c_x,
+        c_y,
+        recording_config.channel_configs[channel].pixel_size,
+        collapse_2d_config.extended_cut_size_px[channel],
+    )
+    ax.scatter(
+        c_x_um,
+        c_y_um,
+        color="red",
+        marker="x",
+    )
+    fig.show()
+
+
+def fill_defaults(  # noqa: F821  # noqa: F821
+    recording_config: "Recording_Config", collapse_2d_config: "Collapse_2d_Config"
+) -> tuple(np.ndarray, np.ndarray, np.ndarray, np.ndarray):
     """
-    I scope function for handling exceptions by appending default values to the stores.
+    This function pre-fills the stores with default values (zeros) for all cells and channels based
+    on the information from the recording and collapse configurations.
 
+    Parameters
+    ----------
+    recording_config : Recording_Config
+        The recording configuration containing details about the recording setup.
+    collapse_2d_config : Collapse_2d_Config
+        The collapse 2D configuration containing details about the cut sizes.
     Returns
     -------
-    tuple cm_most_important_store, sta_single_store
-        Appended default values to the stores.
+    tuple(np.ndarray, np.ndarray, np.ndarray, np.ndarray)
+        A tuple containing:
+        - cm_most_important_store: An array to store the most important covariance matrices.
+        - sta_single_store: An array to store single pixel STA time courses.
+        - rms_store: An array to store RMS values.
+        - cell_sta_coordinates: An array to store STA coordinates for each cell and channel.
 
     """
     nr_cells = recording_config.overview.nr_cells
@@ -89,14 +126,34 @@ def fill_defaults(recording_config, collapse_2d_config):
 
 @depends_on("calculate_rf_quality")
 def sta_2d_cov_collapse(
-        recording_config: "Recording_Config",
-        collapse_2d_config: "Collapse_2d_Config",
-        analysis_folder: str,
-):
+    recording_config: "Recording_Config",
+    collapse_2d_config: "Collapse_2d_Config",
+    analysis_folder: str,
+) -> None:
+    """
+    Perform STA 2D covariance collapse across multiple channels and save the results.
+    Parameters
+    ----------
+    recording_config : Recording_Config
+        The recording configuration containing details about the recording setup.
+    collapse_2d_config : Collapse_2d_Config
+        The collapse 2D configuration containing details about the cut sizes and thresholds.
+    analysis_folder : str
+        The folder where analysis results will be saved.
+    Returns
+    -------
+    None (saves results to disk)
+    """
+    # 1. Extract some general parameters
     channel_roots = [
         channel["root_path"] for channel in recording_config.channel_configs.values()
     ]
-    # Calculate common location across channels
+    nr_cells = recording_config.overview.nr_cells
+    nr_channels = recording_config.nr_channels
+
+    # 2. Locate cells across channels
+    # This is done by taking the weighted average of the positions of the cells in each individual channel,
+    # with the weights being the quality metrics of the cells in each channel.
     cell_qualities, positions = locate_across_channels(
         channel_roots,
         threshold=collapse_2d_config.threshold,
@@ -104,15 +161,7 @@ def sta_2d_cov_collapse(
         channel_configs=recording_config.channel_configs,
     )
 
-    # %% save into xarray Dataset
-    # 1. Define dimensions
-    nr_cells = recording_config.overview.nr_cells
-
-    nr_channels = recording_config.nr_channels
-
-    # 2. Reshape Quality Data (Must be 2D: N_cells x N_channels)
-    # The flatten("F") is correct for column-major (channel-fastest) storage,
-    # BUT it must be reshaped back to 2D *after* flattening.
+    # 3. Reshape Quality Data (Must be 2D: N_cells,  N_channels)
     quality_data = (
         cell_qualities.sel(metrics="quality")
         .to_numpy()  # This is likely 2D already (channel x cell_index) from xarray/polars
@@ -122,13 +171,7 @@ def sta_2d_cov_collapse(
         # because the flattened F-order data naturally arranges itself that way when reshaping to (N_cells, N_channels)
     )
 
-    # 3. Reshape Positions Data (Must be 2D: N_cells x 2)
-    # The positions data (original shape likely N_cells * N_channels x 2) must be condensed to one entry per cell.
-    # Assuming positions["quality_metrics"].to_numpy() is (N_cells * N_channels, 2) and the positions are repeated per channel:
-    # We take only the first channel's position slice, resulting in (N_cells, 2)
-    # shape: (N_cells, 2)
-
-    # 4. Reshape sta_path Data (Must be 2D: N_cells x N_channels)
+    # 4. Create STA paths array which is ( N_cells, N_channels)
     sta_paths_1d = np.array(
         [
             f"{channel_roots[channel].parts[-1]}/cell_{cell_idx}/kernel.npy"
@@ -136,14 +179,12 @@ def sta_2d_cov_collapse(
             for channel in range(nr_channels)
         ]
     )
-    # Reshape this 1D array back to 2D (N_cells, N_channels) - C-order is the default and correct here
     sta_paths_2d = sta_paths_1d.reshape(nr_cells, nr_channels)
 
+    # 5. Create empty xarray Dataset
     ds = xr.Dataset(
         data_vars={
-            # ('cell_index', 'channel') shape is (N_cells, N_channels)
             "quality": (("cell_index", "channel"), quality_data),
-            # ('cell_index', 'pos_dim') shape is (N_cells, 2)
             "positions": (
                 ("cell_index", "pos_dim", "channel"),
                 einops.rearrange(
@@ -151,16 +192,15 @@ def sta_2d_cov_collapse(
                     "channel cells positions -> cells positions channel",
                 ),
             ),
-            # ('cell_index', 'channel') shape is (N_cells, N_channels)
             "sta_path": (("cell_index", "channel"), sta_paths_2d),
         },
         coords={
             "cell_index": cell_qualities["cell_index"].values,
-            "channel": recording_config.channel_names,  # ['610_nm', '535_nm']
+            "channel": recording_config.channel_names,
             "pos_dim": ["x", "y"],
         },
     )
-    # save as netcdf file
+    # save as netcdf file with compression
     ds.to_netcdf(
         recording_config.root_path
         / recording_config.output_folder
@@ -169,43 +209,7 @@ def sta_2d_cov_collapse(
         engine="netcdf4",
         encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
     )
-
-    # # %% Construct the results dataframe
-    # schema = {
-    #     "cell_index": pl.UInt32,
-    #     "channel": pl.Categorical,
-    #     "sta_path": pl.Utf8,
-    #     "positions": pl.Array(pl.UInt16, 2),
-    #     "quality": pl.Float64,
-    # }
-    # sta_paths = [
-    #     f"{channel_root.parts[-1]}/cell_{cell_idx}/kernel.npy"
-    #     for cell_idx in cell_qualities["cell_index"].values
-    #     for channel_root in channel_roots
-    # ]
-    # data = {
-    #     "cell_index": cell_qualities["cell_index"]
-    #     .values.repeat(recording_config.nr_channels)
-    #     .astype(np.uint32),
-    #     "channel": recording_config.channel_names * cell_qualities.sizes["cell_index"],
-    #     "sta_path": [path for path in sta_paths],
-    #     "positions": positions["quality_metrics"]
-    #     .to_numpy()
-    #     .astype(np.uint16)
-    #     .repeat(recording_config.nr_channels, axis=0),
-    #     "quality": cell_qualities.sel(metrics="quality")["quality_metrics"]
-    #     .to_numpy()
-    #     .flatten("F"),
-    # }
-    # df = pl.DataFrame(data, schema=schema)
-    # # save as parquet file
-    # df.write_parquet(
-    #     recording_config.root_path
-    #     / recording_config.output_folder
-    #     / analysis_folder
-    #     / "noise_df.parquet"
-    # )
-
+    # 6. Define default output values (zeros) for all variables to be calculated in the loop
     (
         cm_most_important_store,
         sta_single_store,
@@ -213,150 +217,73 @@ def sta_2d_cov_collapse(
         cell_sta_coordinates,
     ) = fill_defaults(recording_config, collapse_2d_config)
 
-    # %% Step two sta extension and covariance matrix
-    # This is a for loop, because the data is too large for running in parallel.
-    plot_trigger = 0
-    store_position = 0
-
+    plot_trigger = 0  # This is a switch to only plot the first cell for sanity check
+    # 7. Loop over all cells and channels to calculate covariance matrices
     for cell_pos, cell_idx in tqdm(
-            enumerate(ds["cell_index"].to_numpy()),
-            total=ds.sizes["cell_index"],
-            desc="Calculating covariance matrices",
+        enumerate(ds["cell_index"].to_numpy()),
+        total=ds.sizes["cell_index"],
+        desc="Calculating covariance matrices",
     ):
-        cell_data = ds.sel(cell_index=cell_idx)
-        # Extract relevant info from the row
+        # Loop over channels
         for channel in recording_config.channel_names:
-            channel_data = cell_data.sel(channel=channel)
+            channel_data = ds.sel(cell_index=cell_idx, channel=channel)
+
+            # Skip low quality cells
+            if np.isnan(channel_data["quality"].item()):
+                continue
             if channel_data["quality"].item() < collapse_2d_config.threshold:
-                store_position += 1
                 continue
 
-            try:
-                # Load STA subset
-                subset, c_x, c_y = load_sta_subset(
-                    recording_config.root_path / channel_data["sta_path"].item(),
-                    positions=tuple(
-                        positions.sel(channel=channel, cell_index=cell_idx).values
-                    ),
-                    subset_size=tuple(
-                        [
-                            collapse_2d_config.cut_size_px[channel].loc["x"].item(),
-                            collapse_2d_config.cut_size_px[channel].loc["y"].item(),
-                        ]
-                    ),
-                    dt_ms=recording_config.channel_configs[channel].dt_ms,
-                    t_zero_index=recording_config.channel_configs[channel].total_sta_len
-                                 - recording_config.channel_configs[channel].post_spike_bins,
-                )
-                # Test if max is in center
-                smooth_subset = smooth_ker(subset.values)
-                max_pos = np.unravel_index(
-                    np.argmax(np.var(smooth_subset, axis=0)), smooth_subset.shape
-                )
-                new_x, new_y = max_pos[1], max_pos[2]
-                shift_x = (
-                        new_x - collapse_2d_config.half_cut_size_px[channel].loc["x"].item()
-                )
-                shift_y = (
-                        new_y - collapse_2d_config.half_cut_size_px[channel].loc["y"].item()
-                )
-                # update positions
-                channel_data["positions"].values[0] += shift_x
-                channel_data["positions"].values[1] += shift_y
-                # Reload subset with updated positions
-                subset, c_x, c_y = load_sta_subset(
-                    recording_config.root_path / channel_data["sta_path"].item(),
-                    positions=tuple(channel_data["positions"].values.astype(int)),
-                    subset_size=tuple(
-                        [
-                            collapse_2d_config.cut_size_px[channel].loc["x"].item(),
-                            collapse_2d_config.cut_size_px[channel].loc["y"].item(),
-                        ]
-                    ),
-                    dt_ms=recording_config.channel_configs[channel].dt_ms,
-                    t_zero_index=recording_config.channel_configs[channel].total_sta_len
-                                 - recording_config.channel_configs[channel].post_spike_bins,
-                )
-                subset = px_position_to_um(
-                    subset,
-                    recording_config.channel_configs[channel].pixel_size,
-                    collapse_2d_config.extended_cut_size_px[channel],
-                )
-                cell_sta_coordinates[
-                    cell_pos, recording_config.channel_names.index(channel)
-                ] = xr.DataArray(
-                    data=subset.var("time").values,
-                    dims=["y", "x"],
-                    coords={"x": subset.coords["x"], "y": subset.coords["y"]},
-                )
-            except FileNotFoundError:
-                print(f"File not found for item {cell_idx}")
-                store_position += 1
+            result = load_and_realign_center(
+                recording_config,
+                collapse_2d_config,
+                cell_idx,
+                channel,
+                positions.sel(cell_index=cell_idx, channel=channel),
+            )
+            # The function will return None if the cell could not be loaded or aligned
+            if result is None:
                 continue
-
+            subset, c_x, c_y, var_coordinates = result
+            cell_sta_coordinates[
+                cell_pos, recording_config.channel_names.index(channel)
+            ] = var_coordinates
+            # update positions
+            positions.loc[dict(cell_index=cell_idx, channel=channel)] = xr.DataArray(
+                data=np.array([c_x, c_y]),
+                dims=["metrics"],
+                coords={"metrics": ["center_x", "center_y"]},
+            )
             if plot_trigger == 0:
                 # Sanity plot for the first cell only
                 plot_trigger = 1
-                fig, ax = plt.subplots(figsize=(10, 10))
-                ishow = subset.var("time").plot.imshow(
-                    ax=ax,
-                    cmap="gray",
-                    x="x",
-                    y="y",
-                    cbar_kwargs={"shrink": 0.5},
+                plot_sanity_fig(
+                    subset, c_x, c_y, channel, recording_config, collapse_2d_config
                 )
-                ax.set_aspect("equal")
-                ax.set_title("Sanity plot subset")
-                c_x_um, c_y_um = px_int_to_um(
-                    c_x,
-                    c_y,
-                    recording_config.channel_configs[channel].pixel_size,
-                    collapse_2d_config.extended_cut_size_px[channel],
-                )
-                ax.scatter(
-                    c_x_um,
-                    c_y_um,
-                    color="red",
-                    marker="x",
-                )
-                fig.show()
 
-            # Get number of spikes for normalization
-
+            # Now that the data are loaded, we can calculate RMS and covariance map
+            # 8. Calculate RMS
             stimulus_id = int(channel_data["sta_path"].item().split("_")[-2][:1])
             nr_of_spikes = recording_config.overview.spikes_df.query(
                 f"stimulus_index=={stimulus_id}&cell_index=={cell_idx}"
             )["nr_of_spikes"].values[0]
-
-            sta_per_spike_raw = (
-                    subset / nr_of_spikes - 0.5
-            ).values  # shape: (time, h, w)
-
-            # calulcate rms
-            subset_rms = np.max((sta_per_spike_raw) ** 2, axis=0)
-            rms_store[store_position] = subset_rms.astype(np.float32, copy=False)
+            sta_per_spike_raw, rms = calculate_rms(subset, nr_of_spikes)
+            rms_store[cell_pos] = rms.values.astype(np.float32, copy=False)
             time_bins, h, w = sta_per_spike_raw.shape
 
-            flat = sta_per_spike_raw.reshape(time_bins, h * w).astype(
+            # 9. Reshape data for SVD
+            flat = sta_per_spike_raw.values.reshape(time_bins, h * w).astype(
                 np.float32, copy=False
             )
-
-            flat_centered = flat - flat.mean(axis=0, keepdims=True)
-
-            # SVD on the CENTERED data
-            try:
-                # Use flat_centered here, NOT flat (raw)
-                _, s, Vt = np.linalg.svd(flat_centered, full_matrices=False)
-            except np.linalg.LinAlgError:
-                print(f"SVD did not converge for cell {cell_idx}, skipping.")
-                store_position += 1
-                continue
-            # Covariance with most important pixel
-            loadings = Vt[0]  # shape: (h*w,)
-            most_idx = int(np.argmax(np.abs(loadings)))
-            cov_with_most = (flat_centered.T @ flat_centered[:, most_idx]) / (
-                    time_bins - 1
+            results = calculate_covariance(
+                flat - flat.mean(axis=0, keepdims=True), time_bins
             )
+            if results is None:
+                print(
+                    f"SVD failed, could not calculate covariance map for cell {cell_idx}."
+                )
+                continue
+            cov_with_most, most_idx = results
             cov_with_most = np.reshape(
                 cov_with_most,
                 (
@@ -364,13 +291,10 @@ def sta_2d_cov_collapse(
                     w,
                 ),
             )
-            cm_most_important_store[store_position] = cov_with_most
+            cm_most_important_store[cell_pos] = cov_with_most
             # Store STA time course of the selected pixel
             pix_y, pix_x = divmod(most_idx, w)
-            sta_single_store[store_position] = sta_per_spike_raw[:, pix_y, pix_x] + 0.5
-            store_position += 1
-
-        #
+            sta_single_store[cell_pos] = sta_per_spike_raw[:, pix_y, pix_x] + 0.5
 
     # Data reshaping for optimap storing.
     # If the data are from noise with different pixel sizes, we need to interpolate them to the same coordinate system.
@@ -409,8 +333,8 @@ def sta_2d_cov_collapse(
     # Determine duration in ms of sta before the spike
     time_lengths = [
         (
-                recording_config.channel_configs[channel].total_sta_len
-                - recording_config.channel_configs[channel].post_spike_bins
+            recording_config.channel_configs[channel].total_sta_len
+            - recording_config.channel_configs[channel].post_spike_bins
         )
         * recording_config.channel_configs[channel].dt_ms
         for channel in recording_config.channel_names
@@ -431,16 +355,16 @@ def sta_2d_cov_collapse(
     # Caculate the size in um of the complete sta image. All cutouts from all channels will fit in this space.
     max_y_size_um = max(
         (
-                recording_config.channel_configs[channel]["image_shape"].loc["y"].item()
-                + collapse_2d_config.border_buffer_px[channel].loc["y"].item() * 2
+            recording_config.channel_configs[channel]["image_shape"].loc["y"].item()
+            + collapse_2d_config.border_buffer_px[channel].loc["y"].item() * 2
         )  # both sides)
         * common_pixel_size
         for channel in recording_config.channel_names
     )
     max_x_size_um = max(
         (
-                recording_config.channel_configs[channel]["image_shape"].loc["x"].item()
-                + collapse_2d_config.border_buffer_px[channel].loc["x"].item() * 2
+            recording_config.channel_configs[channel]["image_shape"].loc["x"].item()
+            + collapse_2d_config.border_buffer_px[channel].loc["x"].item() * 2
         )  # both sides)
         * common_pixel_size
         for channel in recording_config.channel_names
@@ -543,7 +467,7 @@ def sta_2d_cov_collapse(
 
     # Add the padded arrays to the dataset
     ds["cm_most_important"] = (
-        ("cell_index", "channel", "y" "", "x"),
+        ("cell_index", "channel", "y", "x"),
         cm_final_array,
     )
     ds["rms"] = (("cell_index", "channel", "y", "x"), rms_final)
@@ -568,10 +492,10 @@ def sta_2d_cov_collapse(
 @depends_on("calculate_rf_quality")
 @depends_on("sta_2d_cov_collapse")
 def circular_reduction(
-        recording_config: "Recording_Config",
-        collapse_2d_config: "Collapse_2d_Config",
-        circular_reduction_config: "Circular_Reduction_Config",
-        analysis_folder: str,
+    recording_config: "Recording_Config",
+    collapse_2d_config: "Collapse_2d_Config",
+    circular_reduction_config: "Circular_Reduction_Config",
+    analysis_folder: str,
 ):
     ds = xr.load_dataset(
         recording_config.root_path
@@ -629,13 +553,13 @@ def circular_reduction(
     channel_names = recording_config.channel_names
     with np.errstate(divide="ignore", invalid="ignore"):
         for (cell_position, cell_index), channel in tqdm(
-                product(enumerate(ds.cell_index), channel_names),
-                total=ds.cell_index.shape[0] * len(channel_names),
-                desc="Performing circular reduction",
+            product(enumerate(ds.cell_index), channel_names),
+            total=ds.cell_index.shape[0] * len(channel_names),
+            desc="Performing circular reduction",
         ):
             if (  # Skip low quality cells
-                    ds.sel(cell_index=cell_index, channel=channel).quality
-                    < collapse_2d_config.threshold
+                ds.sel(cell_index=cell_index, channel=channel).quality
+                < collapse_2d_config.threshold
             ):
                 continue
             center = (
@@ -664,7 +588,7 @@ def circular_reduction(
                 entries.append(
                     np.mean(
                         polar_cm[
-                            deg_step: deg_step + circular_reduction_config.degree_bins,
+                            deg_step : deg_step + circular_reduction_config.degree_bins,
                             :,
                         ],
                         axis=0,
@@ -674,15 +598,15 @@ def circular_reduction(
             entries_pos = entries.copy()
             entries_pos[entries_pos < 0] = 0
             entries_mean = (
-                    np.mean(entries_pos / np.max(entries_pos), axis=1)
-                    * entries_pos.shape[1]
+                np.mean(entries_pos / np.max(entries_pos), axis=1)
+                * entries_pos.shape[1]
             )
 
             entries_neg = entries.copy()
             entries_neg[entries_neg > 0] = 0
             entries_mean_neg = (
-                    np.mean(entries_neg / np.min(entries_neg), axis=1)
-                    * entries_neg.shape[1]
+                np.mean(entries_neg / np.min(entries_neg), axis=1)
+                * entries_neg.shape[1]
             )
             entries_mean[np.isnan(entries_mean)] = 0
             entries_mean_neg[np.isnan(entries_mean_neg)] = 0
