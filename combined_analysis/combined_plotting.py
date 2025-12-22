@@ -98,7 +98,7 @@ for i, channel in enumerate(dataset.channel.values):
         rgb_image.loc[:, :, 0] = (channel_data * 255).astype(np.uint8)
     elif rec_config.channel_colours[i] == "green":
         rgb_image.loc[:, :, 1] = (channel_data * 255).astype(np.uint8)
-    elif rec_config.channel_colours[i] == "blue":
+    elif rec_config.channel_colours[i] == "grey":
         rgb_image.loc[:, :, 2] = (channel_data * 255).astype(np.uint8)
 
 # need to find the first and last non-zero pixel in x and y to crop the image

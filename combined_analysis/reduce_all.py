@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import warnings
 from itertools import product
 
 import einops
@@ -17,6 +16,8 @@ import matplotlib.pyplot as plt
 from location.locate import px_int_to_um
 from dim_reduction.rms_error import calculate_rms
 from dim_reduction.covariance import calculate_covariance
+from pathlib import Path
+from scipy.interpolate import RegularGridInterpolator
 
 
 def plot_sanity_fig(
@@ -52,9 +53,93 @@ def plot_sanity_fig(
     fig.show()
 
 
+def interpolate_sta_timecourse(
+    array, min_time_old, max_time_old, min_time_new, max_time_new, new_time_bins
+):
+    """
+    Interpolates a 1D array from old time coordinates to new time coordinates.
+    """
+    # Calculate size using round to avoid floating point truncation errors (e.g. 9.99->9)
+    expected_size = int(np.round((max_time_new - min_time_new) / new_time_bins)) + 1
+
+    # Check if interpolation is strictly necessary
+    if (
+        min_time_old == min_time_new
+        and max_time_old == max_time_new
+        and array.shape[0] == expected_size
+    ):
+        return array
+
+    # Create time vectors
+    old_time = np.linspace(min_time_old, max_time_old, array.shape[0])
+    new_time = np.linspace(min_time_new, max_time_new, expected_size)
+
+    # Use numpy's native 1D interpolation (faster and handles boundaries gracefully)
+    # left=0, right=0 handles values outside the old time range (padding with zeros)
+    new_array = np.interp(new_time, old_time, array, left=0, right=0)
+
+    return new_array
+
+
+def interpolate_2d_results(array, old_x_len, old_y_len, new_x_len, new_y_len):
+    """
+    Interpolates a 2D array from old coordinates to new coordinates using bilinear interpolation.
+
+    Parameters
+    ----------
+    array : np.ndarray
+        The 2D array to be interpolated.
+    old_x_len : int
+        The length of the original x-dimension.
+    old_y_len : int
+        The length of the original y-dimension.
+    new_x_len : int
+        The length of the new x-dimension.
+    new_y_len : int
+        The length of the new y-dimension.
+
+    Returns
+    -------
+    np.ndarray
+        The interpolated 2D array.
+    """
+    if old_x_len == new_x_len and old_y_len == new_y_len:
+        return array  # No interpolation needed
+    else:
+        old_x = np.linspace(0, 1, old_x_len)
+        old_y = np.linspace(0, 1, old_y_len)
+        new_x = np.linspace(0, 1, new_x_len)
+        new_y = np.linspace(0, 1, new_y_len)
+        interp_obj = RegularGridInterpolator(
+            (old_y, old_x), array, method="nearest", bounds_error=False, fill_value=0
+        )
+        new_y_grid, new_x_grid = np.meshgrid(new_y, new_x, indexing="ij")
+        points = np.column_stack([new_y_grid.ravel(), new_x_grid.ravel()])
+        new_array = interp_obj(points).reshape(new_y_len, new_x_len)
+        return new_array
+
+
+def interpolate_pixel_space(array, x_num, y_num):
+    """
+    Interpolates x/y coordinates and returns a list of (x, y) pairs
+    corresponding to a flattened 2D image (Row-Major/C-style).
+    """
+
+    array = array.interp(
+        x=np.linspace(array.coords["x"][0].item(), array.coords["x"][-1].item(), x_num)
+    )
+
+    array = array.interp(
+        y=np.linspace(array.coords["y"][0].item(), array.coords["y"][-1].item(), y_num)
+    )
+    return array
+
+
 def fill_defaults(  # noqa: F821  # noqa: F821
     recording_config: "Recording_Config", collapse_2d_config: "Collapse_2d_Config"
-) -> tuple(np.ndarray, np.ndarray, np.ndarray, np.ndarray):
+) -> tuple(
+    xr.DataArray, xr.DataArray, xr.DataArray, xr.DataArray, np.ndarray, np.ndarray
+):
     """
     This function pre-fills the stores with default values (zeros) for all cells and channels based
     on the information from the recording and collapse configurations.
@@ -73,55 +158,125 @@ def fill_defaults(  # noqa: F821  # noqa: F821
         - sta_single_store: An array to store single pixel STA time courses.
         - rms_store: An array to store RMS values.
         - cell_sta_coordinates: An array to store STA coordinates for each cell and channel.
+        - differing_channels_space: A boolean array indicating channels with differing pixel sizes.
+        - differing_channels_time: A boolean array indicating channels with differing time resolutions.
 
     """
     nr_cells = np.max(recording_config.overview.spikes_df["cell_index"]) + 1
     nr_channels = recording_config.nr_channels
-    cm_most_important_store = np.empty((nr_cells * nr_channels), dtype=object)
-    rms_store = np.empty_like(cm_most_important_store)
-    sta_single_store = np.empty((nr_cells * nr_channels), dtype=object)
-    iter_position = 0
-    for cell_idx in range(nr_cells):
-        for channel in range(nr_channels):
-            cm_most_important_store[iter_position] = np.zeros(
-                (
-                    collapse_2d_config.cut_size_px[
-                        recording_config.channel_names[channel]
-                    ]
-                    .loc["x"]
-                    .item(),
-                    collapse_2d_config.cut_size_px[
-                        recording_config.channel_names[channel]
-                    ]
-                    .loc["y"]
-                    .item(),
-                )
-            )
-            rms_store[iter_position] = np.zeros(
-                (
-                    collapse_2d_config.cut_size_px[
-                        recording_config.channel_names[channel]
-                    ]
-                    .loc["x"]
-                    .item(),
-                    collapse_2d_config.cut_size_px[
-                        recording_config.channel_names[channel]
-                    ]
-                    .loc["y"]
-                    .item(),
-                )
-            )
+    pixel_sizes = [
+        recording_config.channel_configs[channel].pixel_size
+        for channel in recording_config.channel_names
+    ]
+    dts = [
+        recording_config.channel_configs[channel].dt_ms
+        for channel in recording_config.channel_names
+    ]
+    cell_indices = np.arange(nr_cells)
+    if not all(np.array(pixel_sizes) == pixel_sizes[0]):
+        # Interpolation needed
+        # find which channels have different pixel sizes compared to the smallest one
+        differing_channels_space = np.asarray(pixel_sizes) != min(pixel_sizes)
+        print(
+            f"Channels with differing pixel sizes: {np.asarray(recording_config.channel_names)[differing_channels_space]}"
+        )
+        common_pixel_size = min(pixel_sizes)
+        print(f"Interpolating to common pixel size, pixel size: {common_pixel_size} um")
+        # define common size by using the size from one of the channels with the smallest pixel size
+        reference_channel = np.where(np.array(pixel_sizes) == common_pixel_size)[0][0]
+        common_image_size = collapse_2d_config.cut_size_px[
+            recording_config.channel_names[reference_channel]
+        ]
+    else:
+        common_image_size = collapse_2d_config.cut_size_px[
+            recording_config.channel_names[0]
+        ]
+        differing_channels_space = np.array([False] * nr_channels)
+    # Pre-fill stores
+    cm_most_important_store = xr.DataArray(
+        np.zeros(
+            (
+                nr_cells,
+                nr_channels,
+                common_image_size.loc["y"].item(),
+                common_image_size.loc["x"].item(),
+            ),
+            dtype=np.float32,
+        ),
+        dims=["cell_index", "channel", "y", "x"],
+        coords={
+            "cell_index": cell_indices,
+            "channel": recording_config.channel_names,
+            "x": np.arange(common_image_size.loc["x"].item()),
+            "y": np.arange(common_image_size.loc["y"].item()),
+        },
+    )
+    rms_store = xr.full_like(cm_most_important_store, 0)
+    positions_placeholder = np.empty((nr_cells, nr_channels), dtype=object)
 
-            sta_single_store[iter_position] = np.zeros(
-                (
-                    recording_config.channel_configs[
-                        recording_config.channel_names[channel]
-                    ].total_sta_len,
+    if not all(np.array(dts) == dts[0]):
+        # This can be done very simply by taking the min time, max time and calculating the number of bins
+        common_dt = min(dts)
+        print(
+            f"Channels with differing time resolutions, interpolating to dt: {common_dt} ms"
+        )
+        differing_channels_time = np.asarray(dts) != common_dt
+    else:
+        common_dt = dts[0]
+        differing_channels_time = np.array([False] * nr_channels)
+    min_time = (
+        -np.min(
+            [
+                total_sta_len - post_spike_bins
+                for total_sta_len, post_spike_bins in zip(
+                    [
+                        recording_config.channel_configs[channel].total_sta_len
+                        for channel in recording_config.channel_names
+                    ],
+                    [
+                        recording_config.channel_configs[channel].post_spike_bins
+                        for channel in recording_config.channel_names
+                    ],
                 )
-            )
-            iter_position += 1
-    cell_sta_coordinates = np.empty((nr_cells, nr_channels), dtype=object)
-    return cm_most_important_store, sta_single_store, rms_store, cell_sta_coordinates
+            ]
+        )
+        * common_dt
+    )
+    max_time = (
+        np.max(
+            [
+                post_spike_bins
+                for post_spike_bins in [
+                    recording_config.channel_configs[channel].post_spike_bins
+                    for channel in recording_config.channel_names
+                ]
+            ]
+        )
+        * common_dt
+    )
+    common_time_frame = np.arange(
+        min_time,
+        max_time,
+        common_dt,
+    )
+    sta_single_store = xr.DataArray(
+        np.zeros((nr_cells, nr_channels, common_time_frame.shape[0]), dtype=np.float32),
+        dims=["cell_index", "channel", "time"],
+        coords={
+            "cell_index": cell_indices,
+            "channel": recording_config.channel_names,
+            "time": common_time_frame,
+        },
+    )
+
+    return (
+        cm_most_important_store,
+        sta_single_store,
+        rms_store,
+        positions_placeholder,
+        differing_channels_space,
+        differing_channels_time,
+    )
 
 
 @depends_on("calculate_rf_quality")
@@ -144,6 +299,7 @@ def sta_2d_cov_collapse(
     -------
     None (saves results to disk)
     """
+
     # 1. Extract some general parameters
     channel_roots = [
         channel["root_path"] for channel in recording_config.channel_configs.values()
@@ -174,7 +330,11 @@ def sta_2d_cov_collapse(
     # 4. Create STA paths array which is ( N_cells, N_channels)
     sta_paths_1d = np.array(
         [
-            f"{channel_roots[channel].parts[-1]}/cell_{cell_idx}/kernel.npy"
+            str(
+                Path(channel_roots[channel].parts[-1])
+                / f"cell_{cell_idx}"
+                / "kernel.npy"
+            )
             for cell_idx in cell_qualities["cell_index"].values
             for channel in range(nr_channels)
         ]
@@ -214,9 +374,12 @@ def sta_2d_cov_collapse(
         cm_most_important_store,
         sta_single_store,
         rms_store,
-        cell_sta_coordinates,
+        positions_placeholder,
+        differing_channels_space,
+        differing_channels_time,
     ) = fill_defaults(recording_config, collapse_2d_config)
-
+    common_shape_x = cm_most_important_store.coords["x"].max().item() + 1
+    common_shape_y = cm_most_important_store.coords["y"].max().item() + 1
     plot_trigger = 0  # This is a switch to only plot the first cell for sanity check
     # 7. Loop over all cells and channels to calculate covariance matrices
     for cell_pos, cell_idx in tqdm(
@@ -227,7 +390,6 @@ def sta_2d_cov_collapse(
         # Loop over channels
         for channel_index, channel in enumerate(recording_config.channel_names):
             channel_data = ds.sel(cell_index=cell_idx, channel=channel)
-            flat_idx = cell_idx * nr_channels + channel_index
             # Skip low quality cells
             if np.isnan(channel_data["quality"].item()):
                 continue
@@ -245,7 +407,11 @@ def sta_2d_cov_collapse(
             if result is None:
                 continue
             subset, c_x, c_y, var_coordinates = result
-            cell_sta_coordinates[cell_idx, channel_index] = var_coordinates
+            positions_placeholder[cell_pos, channel_index] = interpolate_pixel_space(
+                var_coordinates,
+                common_shape_x,
+                common_shape_y,
+            )
             # update positions
             positions.loc[dict(cell_index=cell_idx, channel=channel)] = xr.DataArray(
                 data=np.array([c_x, c_y]),
@@ -266,7 +432,14 @@ def sta_2d_cov_collapse(
                 f"stimulus_index=={stimulus_id}&cell_index=={cell_idx}"
             )["nr_of_spikes"].values[0]
             sta_per_spike_raw, rms = calculate_rms(subset, nr_of_spikes)
-            rms_store[flat_idx] = rms.values.astype(np.float32, copy=False)
+            # Interpolate covariance map if needed, will return same data if no interpolation needed
+            rms_store.loc[cell_idx, channel] = interpolate_2d_results(
+                rms.values.astype(np.float32, copy=False),
+                rms.sizes["y"],
+                rms.sizes["x"],
+                rms_store.loc[cell_idx, channel].sizes["y"],
+                rms_store.loc[cell_idx, channel].sizes["x"],
+            )
             time_bins, h, w = sta_per_spike_raw.shape
 
             # 9. Reshape data for SVD
@@ -289,12 +462,27 @@ def sta_2d_cov_collapse(
                     w,
                 ),
             )
-            cm_most_important_store[flat_idx] = cov_with_most
+            # Interpolate covariance map if needed, will return same data if no interpolation needed
+            cm_most_important_store.loc[cell_idx, channel] = interpolate_2d_results(
+                cov_with_most,
+                h,
+                w,
+                cm_most_important_store.loc[cell_idx, channel].sizes["y"],
+                cm_most_important_store.loc[cell_idx, channel].sizes["x"],
+            )
             # Store STA time course of the selected pixel
             pix_y, pix_x = divmod(most_idx, w)
-            sta_single_store[flat_idx] = (
-                sta_per_spike_raw[:, pix_y, pix_x] + 0.5
-            ).values
+            sta_single_store.loc[cell_idx, channel] = interpolate_sta_timecourse(
+                (sta_per_spike_raw[:, pix_y, pix_x] + 0.5).values,
+                sta_per_spike_raw[:, pix_y, pix_x].time.values[0],
+                sta_per_spike_raw[:, pix_y, pix_x].time.values[-1],
+                sta_single_store.loc[cell_idx, channel].time.values[0],
+                sta_single_store.loc[cell_idx, channel].time.values[-1],
+                abs(
+                    sta_single_store.loc[cell_idx, channel].time.values[0]
+                    - sta_single_store.loc[cell_idx, channel].time.values[1]
+                ),
+            )
 
     # Data reshaping for optimap storing.
     # If the data are from noise with different pixel sizes, we need to interpolate them to the same coordinate system.
@@ -302,58 +490,11 @@ def sta_2d_cov_collapse(
     # we need to interpolate the 8 um data to 4 um per pixel. We can do this using xarray's interpolation functions.
     # First, test if interpolation is needed, if not we can skip this step.
 
-    pixel_sizes = [
-        recording_config.channel_configs[channel].pixel_size
-        for channel in recording_config.channel_names
-    ]
-    if not all(np.array(pixel_sizes) == pixel_sizes[0]):
-        # Interpolation needed
-        print("Interpolating data to common pixel size for storage.")
-        common_pixel_size = min(pixel_sizes)
-        # for idx, channel in enumerate(recording_config.channel_names):
-        # TODO: Implement interpolation to common pixel size
-    else:
-        common_pixel_size = pixel_sizes[0]
-        cm_most_important_store = np.stack(cm_most_important_store, axis=0)
-
-    # Equally, we need to interpolate the time dimension if they differ across channels.
-    # Here we need to consider the sampling rate but also the time of the spike t=0.
-    channel_dt = [
-        recording_config.channel_configs[channel].dt_ms
-        for channel in recording_config.channel_names
-    ]
-    if not all(np.array(channel_dt) == channel_dt[0]):
-        warnings.warn(
-            "Channels have different time resolutions. Using time interpolation for storage."
-        )
-    else:
-        common_dt = channel_dt[0]
-        sta_single_store[568] = sta_single_store[568][60:160]
-        sta_single_store = np.stack(sta_single_store, axis=0)
-
-    # Determine duration in ms of sta before the spike
-    time_lengths = [
-        (
-            recording_config.channel_configs[channel].total_sta_len
-            - recording_config.channel_configs[channel].post_spike_bins
-        )
-        * recording_config.channel_configs[channel].dt_ms
-        for channel in recording_config.channel_names
-    ]
-    # Since we dont want to extrapolate, we use the minimum time length
-    common_before_spike_ms = min(time_lengths)
-
-    post_spike_time = [
-        recording_config.channel_configs[channel].post_spike_bins
-        * recording_config.channel_configs[channel].dt_ms
-    ]
-    common_post_spike_time = min(post_spike_time)
-
-    common_total_sta_length = np.ceil(
-        common_before_spike_ms / common_dt + common_post_spike_time / common_dt
-    ).astype(int)
-
     # Caculate the size in um of the complete sta image. All cutouts from all channels will fit in this space.
+    reference_channel = np.asarray(recording_config.channel_names)[
+        ~differing_channels_space
+    ][0]
+    common_pixel_size = recording_config.channel_configs[reference_channel].pixel_size
     max_y_size_um = max(
         (
             recording_config.channel_configs[channel]["image_shape"].loc["y"].item()
@@ -381,13 +522,6 @@ def sta_2d_cov_collapse(
     y_coords_um = (y_coords_px - max_y_size_px / 2) * common_pixel_size
     x_coords_um = (x_coords_px - max_x_size_px / 2) * common_pixel_size
 
-    # Bring all toegther into an xarray Dataset for storage
-    time_coordinates = np.arange(
-        -int(common_before_spike_ms),
-        int(common_post_spike_time),
-        common_dt,
-    )
-
     nr_cells = ds.sizes["cell_index"]
     nr_channels = ds.sizes["channel"]
 
@@ -398,37 +532,34 @@ def sta_2d_cov_collapse(
     rms_final = np.full_like(cm_final_array, np.nan, dtype=np.float32)
     # Prepare the final (N_cells, N_channels, Max_Time) array
     sta_final_array = np.full(
-        (nr_cells, nr_channels, common_total_sta_length), np.nan, dtype=np.float32
+        (nr_cells, nr_channels, sta_single_store.shape[2]), np.nan, dtype=np.float32
     )
 
-    cm_most_important_store = einops.rearrange(
-        cm_most_important_store,
-        " (cell channel) y x -> cell channel y x ",
-        cell=nr_cells,
-        channel=nr_channels,
-    )
-    rms_store = einops.rearrange(
-        np.stack(rms_store, axis=0),
-        " (cell channel) y x -> cell channel y x ",
-        cell=nr_cells,
-        channel=nr_channels,
-    )
+    # Store the cell coordinates for each cell and channel
 
-    sta_single_store = einops.rearrange(
-        sta_single_store,
-        " (cell channel) time -> cell channel time ",
-        cell=nr_cells,
-        channel=nr_channels,
-    )
     store_idx = 0
     for cell_idx in range(nr_cells):
         for channel_idx in range(nr_channels):
-            coords = cell_sta_coordinates[cell_idx][channel_idx]
+            coords = positions_placeholder[cell_idx][channel_idx]
             if np.all(coords == None):
                 store_idx += 1
                 continue
-            y_indices = np.searchsorted(y_coords_um, coords["y"].values)
-            x_indices = np.searchsorted(x_coords_um, coords["x"].values)
+            y_indices = np.clip(
+                np.searchsorted(y_coords_um, coords["y"].values), 0, max_y_size_px - 1
+            )
+            x_indices = np.clip(
+                np.searchsorted(x_coords_um, coords["x"].values), 0, max_x_size_px - 1
+            )
+
+            # Ensure indices are unique and maintain the correct shape
+            if len(np.unique(y_indices)) != len(y_indices) or len(
+                np.unique(x_indices)
+            ) != len(x_indices):
+                # Use nearest neighbor assignment instead
+                y_indices = np.arange(len(coords["y"].values)) + y_indices[0]
+                x_indices = np.arange(len(coords["x"].values)) + x_indices[0]
+                y_indices = np.clip(y_indices, 0, max_y_size_px - 1)
+                x_indices = np.clip(x_indices, 0, max_x_size_px - 1)
 
             # create meshgrid for indexing
             y_grid, x_grid = np.ix_(y_indices, x_indices)
@@ -455,11 +586,7 @@ def sta_2d_cov_collapse(
     ds = ds.assign_coords(
         y=y_coords_um,
         x=x_coords_um,
-        time_max=np.arange(
-            -int(common_before_spike_ms / common_dt),
-            int(common_post_spike_time / common_dt),
-            1,
-        ),
+        time_max=sta_single_store.coords["time"].values.astype(np.float32, copy=False),
     )
 
     # Note: These coordinates are not fully correct, as they don't map to physical units
@@ -526,6 +653,17 @@ def circular_reduction(
     max_radius = np.ceil(
         np.max([radius.values for radius in collapse_2d_config.max_radius_px.values()])
     ).astype(int)
+    x_cut_size = int(
+        np.max(
+            [size.loc["x"].item() for size in collapse_2d_config.cut_size_px.values()]
+        )
+    )
+    y_cut_size = int(
+        np.max(
+            [size.loc["y"].item() for size in collapse_2d_config.cut_size_px.values()]
+        )
+    )
+
     in_out_outline_store = xr.DataArray(
         np.zeros((ds.cell_index.shape[0], max_radius, ds.channel.shape[0])),
         dims=["cell_index", "radius", "channel"],
@@ -579,14 +717,17 @@ def circular_reduction(
                     ).cm_most_important.values
                 )
             ]
-            polar_cm = polar_transform(
-                cm_most_important_unpadded.reshape(
-                    collapse_2d_config.cut_size_px[channel].loc["y"].item(),
-                    collapse_2d_config.cut_size_px[channel].loc["x"].item(),
-                ),
-                center,
-                max_radius=int(round(collapse_2d_config.max_radius_px[channel].item())),
-            )
+            try:
+                polar_cm = polar_transform(
+                    cm_most_important_unpadded.reshape(
+                        x_cut_size,
+                        y_cut_size,
+                    ),
+                    center,
+                    max_radius=max_radius,
+                )
+            except ValueError:
+                print("Shape mismatch")
             entries = []
             for deg_step in range(0, 360, circular_reduction_config.degree_bins):
                 entries.append(
