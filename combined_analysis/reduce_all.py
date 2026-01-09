@@ -691,80 +691,78 @@ def circular_reduction(
     )
     channel_names = recording_config.channel_names
     with np.errstate(divide="ignore", invalid="ignore"):
-        for (cell_position, cell_index), channel in tqdm(
-            product(enumerate(ds.cell_index), channel_names),
-            total=ds.cell_index.shape[0] * len(channel_names),
-            desc="Performing circular reduction",
-        ):
-            if np.isnan(ds.sel(cell_index=cell_index, channel=channel).quality):
-                continue
-            if (  # Skip low quality cells
-                ds.sel(cell_index=cell_index, channel=channel).quality
-                < collapse_2d_config.threshold
-            ):
-                continue
+        for cell_position, cell_index in enumerate(ds.cell_index.values):
+            for channel in channel_names:
+                if np.isnan(ds.sel(cell_index=cell_index, channel=channel).quality):
+                    continue
+                if (  # Skip low quality cells
+                    ds.sel(cell_index=cell_index, channel=channel).quality
+                    < collapse_2d_config.threshold
+                ):
+                    continue
 
-            center = (
-                collapse_2d_config.half_cut_size_px[channel].loc["x"].item(),
-                collapse_2d_config.half_cut_size_px[channel].loc["y"].item(),
-            )
-            cm_most_important_unpadded = ds.sel(
-                cell_index=cell_index, channel=channel
-            ).cm_most_important.values[
-                ~np.isnan(
-                    ds.sel(
-                        cell_index=cell_index, channel=channel
-                    ).cm_most_important.values
+                center = (
+                    x_cut_size // 2,
+                    y_cut_size // 2,
                 )
-            ]
-            try:
-                polar_cm = polar_transform(
-                    cm_most_important_unpadded.reshape(
-                        x_cut_size,
-                        y_cut_size,
-                    ),
-                    center,
-                    max_radius=max_radius,
-                )
-            except ValueError:
-                print("Shape mismatch")
-            entries = []
-            for deg_step in range(0, 360, circular_reduction_config.degree_bins):
-                entries.append(
-                    np.mean(
-                        polar_cm[
-                            deg_step : deg_step + circular_reduction_config.degree_bins,
-                            :,
-                        ],
-                        axis=0,
+                cm_most_important_unpadded = ds.sel(
+                    cell_index=cell_index, channel=channel
+                ).cm_most_important.values[
+                    ~np.isnan(
+                        ds.sel(
+                            cell_index=cell_index, channel=channel
+                        ).cm_most_important.values
                     )
+                ]
+                try:
+                    polar_cm = polar_transform(
+                        cm_most_important_unpadded.reshape(
+                            x_cut_size,
+                            y_cut_size,
+                        ),
+                        center,
+                        max_radius=max_radius,
+                    )
+                except ValueError:
+                    print("Shape mismatch")
+                entries = []
+                for deg_step in range(0, 360, circular_reduction_config.degree_bins):
+                    entries.append(
+                        np.mean(
+                            polar_cm[
+                                deg_step : deg_step
+                                + circular_reduction_config.degree_bins,
+                                :,
+                            ],
+                            axis=0,
+                        )
+                    )
+                entries = np.asarray(entries)
+                entries_pos = entries.copy()
+                entries_pos[entries_pos < 0] = 0
+                entries_mean = (
+                    np.mean(entries_pos / np.max(entries_pos), axis=1)
+                    * entries_pos.shape[1]
                 )
-            entries = np.asarray(entries)
-            entries_pos = entries.copy()
-            entries_pos[entries_pos < 0] = 0
-            entries_mean = (
-                np.mean(entries_pos / np.max(entries_pos), axis=1)
-                * entries_pos.shape[1]
-            )
 
-            entries_neg = entries.copy()
-            entries_neg[entries_neg > 0] = 0
-            entries_mean_neg = (
-                np.mean(entries_neg / np.min(entries_neg), axis=1)
-                * entries_neg.shape[1]
-            )
-            entries_mean[np.isnan(entries_mean)] = 0
-            entries_mean_neg[np.isnan(entries_mean_neg)] = 0
+                entries_neg = entries.copy()
+                entries_neg[entries_neg > 0] = 0
+                entries_mean_neg = (
+                    np.mean(entries_neg / np.min(entries_neg), axis=1)
+                    * entries_neg.shape[1]
+                )
+                entries_mean[np.isnan(entries_mean)] = 0
+                entries_mean_neg[np.isnan(entries_mean_neg)] = 0
 
-            center_outline_store.loc[
-                dict(cell_index=cell_index, channel=channel)
-            ] = entries_mean
-            surround_outline_store.loc[
-                dict(cell_index=cell_index, channel=channel)
-            ] = entries_mean_neg
-            in_out_outline_store.loc[
-                dict(cell_index=cell_index, channel=channel)
-            ] = np.mean(entries, axis=0)
+                center_outline_store.loc[
+                    dict(cell_index=cell_index, channel=channel)
+                ] = entries_mean
+                surround_outline_store.loc[
+                    dict(cell_index=cell_index, channel=channel)
+                ] = entries_mean_neg
+                in_out_outline_store.loc[
+                    dict(cell_index=cell_index, channel=channel)
+                ] = np.mean(entries, axis=0)
 
     min_pixel_size = np.min(
         [
