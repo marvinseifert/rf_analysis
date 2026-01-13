@@ -96,3 +96,22 @@ ax.set_ylim(ax.get_ylim()[::-1])
 for contour in stnmf.outlines:
     ax.plot(contour[:, 1], contour[:, 0], linewidth=2, color="white")
 fig.show()
+# %%
+fig = stnmf.plot(colors="#2980b9")
+
+fig.show()
+
+# %% Get the polarities of all subunits
+subunits = stnmf.subunits  # shape: (num_subunits, x, y)
+
+# Find the peak intensity value for each subunit and get its sign
+# This mimics what the library is trying to do internally
+manual_polarities = []
+for i in range(subunits.shape[0]):
+    s = subunits[i]
+    # Find value with largest absolute magnitude
+    peak_val = s.flat[np.abs(s).argmax()]
+    # Assign +1 for ON, -1 for OFF
+    manual_polarities.append(1 if peak_val > 0 else -1)
+
+print(manual_polarities)
