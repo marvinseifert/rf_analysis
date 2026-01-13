@@ -13,13 +13,12 @@ from s_nmf.factorization import semi_nmf_hals
 from rf_torch.parameters import Cell_Params
 from pickle import dump, load
 
-from scripts.clustering_recordings import nr_cells
 
 # %% Load data
 data_root = Path(
     r"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_13_11_2025/Phase_00/4px_20Hz_shuffle_led_535_idx_2"
 )
-cell_idx = 266
+cell_idx = 263
 save_root = data_root / f"cell_{cell_idx}"
 
 # %%
@@ -61,6 +60,8 @@ nr_repetitions = 10
 arguments = dict(sparsities=[0, 0.5, 1, 1.5, 2], num_rep=nr_repetitions)
 results = dict()
 nr_components = 30
+
+# %%
 STNMF(
     projected_snippets,
     callback=consensus,
@@ -80,26 +81,13 @@ stnmf = STNMF(
     projected_snippets,
     callback=consensus,
     callback_kwargs={
-        "sparsities": [arguments["sparsities"][best_sparsity]],
+        "sparsities": [0.5],
         "num_rep": nr_repetitions,
     },
     r=nr_components,
-    sparsity=arguments["sparsities"][best_sparsity],
+    sparsity=0.5,  # arguments["sparsities"][best_sparsity],
 )
 
-# %% Plot results
-fig, ax = plt.subplots(figsize=(10, 10))
-ax.imshow(mse_snippets, cmap="gray")
-# flip the y-axis
-ax.set_ylim(ax.get_ylim()[::-1])
-
-for contour in stnmf.outlines:
-    ax.plot(contour[:, 1], contour[:, 0], linewidth=2, color="white")
-fig.show()
-# %%
-fig = stnmf.plot(colors="#2980b9")
-
-fig.show()
 
 # %% Get the polarities of all subunits
 subunits = stnmf.subunits  # shape: (num_subunits, x, y)
@@ -115,3 +103,57 @@ for i in range(subunits.shape[0]):
     manual_polarities.append(1 if peak_val > 0 else -1)
 
 print(manual_polarities)
+# %% Plot results
+polarity_colours = {1: "red", -1: "blue"}
+fig, ax = plt.subplots(figsize=(10, 10))
+ax.imshow(mse_snippets, cmap="gray")
+# flip the y-axis
+ax.set_ylim(ax.get_ylim()[::-1])
+
+for c_idx, contour in enumerate(stnmf.outlines):
+    ax.plot(
+        contour[:, 1],
+        contour[:, 0],
+        linewidth=2,
+        color=polarity_colours[manual_polarities[c_idx]],
+    )
+fig.show()
+# %%
+fig = stnmf.plot(colors="#2980b9")
+
+fig.show()
+
+# %% Subunit triggered averages
+k = 0  # subunit index
+
+weights = stnmf.h[k]
+weights = weights / np.sum(weights)
+
+sub_sta_full = np.tensordot(weights, snippets, axes=(0, 0))  # -> (T, X, Y)
+
+# %%
+fig, ax = plt.subplots(figsize=(10, 10))
+ax.imshow(np.var(sub_sta_full, axis=0), cmap="gray")
+contour = stnmf.outlines[k]
+ax.plot(
+    contour[:, 1],
+    contour[:, 0],
+    linewidth=2,
+    color=polarity_colours[manual_polarities[c_idx]],
+)
+# flip the y-axis
+ax.set_ylim(ax.get_ylim()[::-1])
+fig.show()
+
+# %%
+s = subunits[k]
+s = s / np.linalg.norm(s)
+
+temporal_kernel = np.tensordot(sub_sta_full, s, axes=([1, 2], [0, 1]))  # -> (T,)
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(temporal_kernel)
+fig.show()
+# %%
+np.save(save_root / "s_nmf_contours.npy", stnmf.outlines)
+np.save(save_root / "s_nmf_subunits.npy", stnmf.subunits)
+np.save(save_root / "snippet_mse.npy", mse_snippets)
