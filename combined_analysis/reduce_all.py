@@ -427,7 +427,7 @@ def sta_2d_cov_collapse(
 
             # Now that the data are loaded, we can calculate RMS and covariance map
             # 8. Calculate RMS
-            stimulus_id = int(channel_data["sta_path"].item().split("_")[-2][:1])
+            stimulus_id = int(channel_data["sta_path"].item().split("_")[-1])
             nr_of_spikes = recording_config.overview.spikes_df.query(
                 f"stimulus_index=={stimulus_id}&cell_index=={cell_idx}"
             )["nr_of_spikes"].values[0]
