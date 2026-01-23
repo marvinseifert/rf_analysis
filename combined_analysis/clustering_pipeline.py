@@ -1,60 +1,44 @@
-from clustering import rf_clustering
 from pathlib import Path
-import polars as pl
 import matplotlib.pyplot as plt
-from pickle import load as load_pickle
-from importlib import reload
 import numpy as np
 import xarray as xr
 from organize.configs import Recording_Config
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA, SparsePCA
+from sklearn.preprocessing import RobustScaler
+from sklearn.decomposition import PCA
 import plotly.express as px
 from scaling.cuts import get_non_nan_slices, cutout_nans
 from tqdm import tqdm
 import matplotlib
 from aquarel import load_theme
+from plotting.zooming import zoom_extent
+from normalization.normalize_sta import zscore_xr_sta
+import warnings
+from sklearn.ensemble import IsolationForest
+from sklearn.decomposition import TruncatedSVD
+from sklearn.preprocessing import Normalizer
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import pairwise_distances
+from sklearn.cluster import AffinityPropagation
 
 coolwarm_heatmap = matplotlib.colormaps["coolwarm"]
 heatmap_max = coolwarm_heatmap(1.0)
 heatmap_min = coolwarm_heatmap(0.0)
 theme = load_theme("scientific")
 theme.apply()
-
+# %% Global parameters
 channel_colours = ["red", "green", "black"]
+channel_plotting_order = np.array(
+    ["610_nm", "535_nm", "white"]
+)  # If you define more than 3, only the first 3 will be used for RGB overlays
 
-
-# %% Functions
-def zoom_extent(xarray, zoom_factor):
-    """Return extent [xmin, xmax, ymin, ymax] zoomed around the center."""
-    x_coords = xarray.coords["x"]
-    y_coords = xarray.coords["y"]
-    x_center = (x_coords.min() + x_coords.max()) / 2
-    y_center = (y_coords.min() + y_coords.max()) / 2
-    x_half_range = (x_coords.max() - x_coords.min()) / 2 / zoom_factor
-    y_half_range = (y_coords.max() - y_coords.min()) / 2 / zoom_factor
-    return [
-        x_center - x_half_range,
-        x_center + x_half_range,
-        y_center - y_half_range,
-        y_center + y_half_range,
-    ]
-
-
-def all_arrays_identical(arrays):
-    first = arrays[0]
-    return all(np.array_equal(a, first) for a in arrays[1:])
-
-
-# %%
 for_clustering = [
     "center_outline_um",
     "in_out_outline_um",
     "surround_outline_um",
     "sta_single_pixel",
 ]
-# %%
+# %% Data inputs
 # We can load datasets from several different recordings.
 path_to_data = [
     Path(
@@ -64,6 +48,18 @@ path_to_data = [
         r"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_18_11_2025/Phase_00/noise_analysis/noise_data.nc"
     ),
 ]
+
+# %% Output parameters
+save_path = Path(r"/media/mawa/New Volume/cluster_all/test")
+warnings.warn(
+    f"Warning, all figures existing in {save_path} will be removed when running the next cell!"
+)
+top_cell_nr = 5  # How many cells to plot per cluster (maximally)
+zoom = (
+    2  # This can zoom the heatmaps by a factor, set to 1 if you want to original size
+)
+# %%
+
 
 # Load the config files:
 configs = [Recording_Config.load_from_root_json(path.parent) for path in path_to_data]
@@ -79,6 +75,13 @@ valid_channels = unique_channel_names[counts == len(configs)]
 print(
     f"Found the following consistent channels across recordings: {valid_channels}. These will be used for clustering."
 )
+channel_match = np.isin(channel_plotting_order, valid_channels)
+valid_channels = channel_plotting_order[channel_match]
+
+if np.any(channel_match == False):
+    print(
+        f"Warning, some channels in the plotting order are not available consistently in all recordings and will be skipped: {channel_plotting_order[~channel_match]}"
+    )
 # %%
 # 1. Load and align recordings
 datasets = []
@@ -96,7 +99,7 @@ for path, config in zip(path_to_data, configs):
 ref_ds = datasets[0]
 target_coords = {
     dim: max([d.coords[dim].values for d in datasets], key=len)
-    for dim in ["time_max", "degrees", "radius"]
+    for dim in ["time_max", "degree", "radius"]
     if dim in ref_ds.dims
 }
 
@@ -115,9 +118,14 @@ obs_stacked = combined_ds.stack(index=("recording", "cell_index"))
 
 # Collapse all variables and all other dimensions (channel, x, y...) into the feature vector
 # Size will be: (index, all_remaining_features)
+# final_array = obs_stacked.to_stacked_array("all_features", sample_dims=["index"])
+dim_order = ["index", "channel", "time_max", "degree", "radius"]
+obs_stacked = obs_stacked.transpose(
+    *[d for d in dim_order if d in obs_stacked.dims], ...
+)
 final_array = obs_stacked.to_stacked_array("all_features", sample_dims=["index"])
 # %% Drop any cells with NaNs
-final_array = final_array.fillna(0)  # TODO Need to check for all ==0
+final_array = final_array.fillna(0)
 final_array[np.all(final_array.values == 0, axis=1), :] = np.nan
 # cells that have all NaNs across all features are dropped
 final_array = final_array.dropna("index", how="all")
@@ -125,8 +133,9 @@ final_array = final_array.dropna("index", how="all")
 print(
     f"Final data array shape for clustering: {final_array.shape[0]} cells and {final_array.shape[1]} features."
 )
-# %%
-from sklearn.ensemble import IsolationForest
+# %% Outlier removal
+# science: This step should be performed with great care as removing outliers isnt straightforward. Only obviously totally noisy
+# samples should be removed.
 
 iso_forest = IsolationForest()
 outlier_labels = iso_forest.fit_predict(final_array)
@@ -135,14 +144,26 @@ outlier_labels = iso_forest.fit_predict(final_array)
 final_array_clean = final_array.sel(
     index=final_array.coords["index"].values[outlier_labels == 1]
 )
+
+# %% Alternatively, use all data without outlier removal
+final_array_clean = final_array
+# %% Extract inlier indices for later use
 inliner_indices = final_array_clean.coords["index"].values
 inliner_indices_pd = inlier_indices = pd.MultiIndex.from_tuples(
     final_array_clean.coords["index"].values, names=["recording", "cell_index"]
 )  # This extracts the index as an actual pandas MultiIndex for easier handling later on
-# %% Scale data
-scaler = StandardScaler()
-all_data_scaled = scaler.fit_transform(final_array_clean)
 
+# %% Scale data
+scaler = RobustScaler(with_centering=True, unit_variance=True)
+all_data_scaled = scaler.fit_transform(final_array_clean)
+# %%
+fig, ax = plt.subplots(figsize=(20, 10))
+ax.imshow(all_data_scaled)
+fig.show()
+# %%
+fig, ax = plt.subplots(figsize=(20, 10))
+ax.plot(all_data_scaled[150])
+fig.show()
 # %% PCA
 pca = PCA(n_components=2)
 pca_result = pca.fit_transform(all_data_scaled)  # only use inliers
@@ -159,8 +180,32 @@ fig = px.scatter(
 fig.update_traces(marker=dict(size=3))
 fig.show()
 
+
+# %% KNN graph
+# 1. 'Fill the zeros' with Truncated SVD (Latent Semantic Analysis)
+# 2. Normalize to make points comparable on a sphere
+# 3. Cluster in the resulting dense potential space
+
+pipeline = make_pipeline(
+    TruncatedSVD(n_components=50),
+    Normalizer(copy=False),
+    AffinityPropagation(damping=0.9, random_state=42),
+)
+
+labels = pipeline.fit_predict(all_data_scaled)
+# %%
+svd_result = pipeline.named_steps["truncatedsvd"].transform(all_data_scaled)
+fig = px.scatter(
+    x=svd_result[:, 0],
+    y=svd_result[:, 1],
+    color=labels.astype(str),
+    hover_data={"recording": recording_ids, "cell_index": cell_indices},
+    labels={"x": "SVD1", "y": "SVD2", "color": "Cluster"},
+)
+fig.update_traces(marker=dict(size=3))
+fig.show()
+
 # %% Calculate distance matrix
-from sklearn.metrics import pairwise_distances
 
 distance_matrix = pairwise_distances(all_data_scaled, metric="cosine")
 fig, ax = plt.subplots()
@@ -169,12 +214,45 @@ fig.colorbar(cax, ax=ax, label="Cosine Distance")
 ax.set_title("Distance Matrix")
 fig.show()
 
-# %% Clustering
-from sklearn.cluster import AffinityPropagation
 
-clustering_model = AffinityPropagation(damping=0.5, random_state=42)
-labels = clustering_model.fit_predict(all_data_scaled)
+# # %% Agglomerative Clustering with connectivity constraints
+# from sklearn.cluster import AgglomerativeClustering
+#
+# agglo_model = AgglomerativeClustering(
+#     linkage="single", n_clusters=10, connectivity=knn_graph
+# )
+# labels = agglo_model.fit_predict(all_data_scaled)
+#
+# # %% Clustering
+# # Affinity Propagation can be used if the number of samples is not too large.
+# # It automatically determines the number of clusters based on the data and the damping factor, which controls the convergence behavior.
+# from sklearn.cluster import AffinityPropagation
+#
+# clustering_model = AffinityPropagation(damping=0.9, random_state=42)
+# labels = clustering_model.fit_predict(all_data_scaled)
+#
+# print(f"Found {len(np.unique(labels))} clusters.")
 
+
+# %% Alternatively, use HDBSCAN for larger datasets
+# This has the advantage of being able to label some samples as noise and not assign them to any cluster.
+# import hdbscan
+#
+# hdb_clusterer = hdbscan.HDBSCAN(min_cluster_size=5, metric="precomputed").fit(
+#     distance_matrix
+# )
+# labels = hdb_clusterer.labels_
+# print(f"Found {len(np.unique(labels))} clusters.")
+# print(f"Number of noisy samples: {np.sum(labels == -1)}")
+#
+#
+# # %%
+# # %%
+# ax = hdb_clusterer.condensed_tree_.plot(
+#     select_clusters=True, selection_palette=sns.color_palette("deep", 8)
+# )
+# fig = ax.get_figure()
+# fig.show()
 # %% Plot clusters in pca space
 fig = px.scatter(
     x=pca_result[:, 0],
@@ -189,10 +267,7 @@ fig.show()
 # Here we plot one figure per cluster. The first figure shows heatmaps of cm_most_important and rms.
 # This plots quite a bit of data and the plotting can take a couple of minutes.
 # Parameters:
-top_cell_nr = 5  # How many cells to plot per cluster (maximally)
-zoom = (
-    2  # This can zoom the heatmaps by a factor, set to 1 if you want to original size
-)
+
 datasets_heatmaps = {}
 heatmap_names = [
     "cm_most_important",
@@ -202,7 +277,12 @@ heatmap_names = [
 data_to_load = heatmap_names + [
     "quality"
 ]  # heatmap names and quality for choosing the best cells to plot
-save_path = Path(r"/media/mawa/New Volume/cluster_all/test")
+
+
+# %%
+
+for existing_file in save_path.glob("*.png"):
+    existing_file.unlink()
 for path, config in zip(path_to_data, configs):
     # Lazy load only the variables you need
     ds = xr.open_dataset(path, chunks={"channel": 100})[data_to_load]
@@ -266,8 +346,11 @@ for label_idx, label in tqdm(
     rms_cluster = xr.concat(rms_list, dim="recording").compute()
     quality_cluster = xr.concat(quality_list, dim="recording")
     # Sort all datasets by average quality across channels
-    avg_quality = quality_cluster.mean(dim="channel")
+    avg_quality = quality_cluster.mean(dim="channel", skipna=True)
     avg_quality_flat = avg_quality.stack(flat_index=("recording", "cell_index"))
+    avg_quality_flat = avg_quality_flat.fillna(
+        0
+    )  # There might be NaNs, because some cells have good rfs in one channel but not in others
     sorted_indices = avg_quality_flat.argsort()[::-1][
         :max_cell_nr_in_cluster
     ]  # Top top_cell_nr highest quality
@@ -460,7 +543,7 @@ for label_idx, label in enumerate(unique_labels):
         axs[label_idx, 0].plot(
             np.deg2rad(channel_data.coords["degree"].values),
             channel_data["center_outline_um"].mean(dim="index").values,
-            c="black",
+            c=channel_colours[channel_idx],
             linewidth=global_line_width * 5,
         )
         axs[label_idx, 0].set_theta_zero_location("E")
@@ -485,7 +568,7 @@ for label_idx, label in enumerate(unique_labels):
         axs[label_idx, 1].plot(
             np.deg2rad(channel_data.coords["degree"].values),
             channel_data["surround_outline_um"].mean(dim="index").values,
-            c="black",
+            c=channel_colours[channel_idx],
             linewidth=global_line_width * 5,
         )
         axs[label_idx, 1].set_theta_zero_location("E")
@@ -510,21 +593,21 @@ for label_idx, label in enumerate(unique_labels):
         axs[label_idx, 2].plot(
             channel_data.coords["radius"].values,
             channel_data["in_out_outline_um"].mean(dim="index").values,
-            c="black",
+            c=channel_colours[channel_idx],
             linewidth=global_line_width * 5,
         )
         # Plot sta
         axs[label_idx, 3].plot(
             channel_data.coords["time_max"].values,
-            channel_data["sta_single_pixel"].values,
+            zscore_xr_sta(channel_data).values,
             c=channel_colours[channel_idx],
             linewidth=global_line_width,
         )
         # plot mean
         axs[label_idx, 3].plot(
             channel_data.coords["time_max"].values,
-            channel_data["sta_single_pixel"].mean(dim="index").values,
-            c="black",
+            zscore_xr_sta(channel_data).mean(dim="index").values,
+            c=channel_colours[channel_idx],
             linewidth=global_line_width * 5,
         )
 fig.savefig(save_path / f"cluster_{label}_stats.png", dpi=300)
