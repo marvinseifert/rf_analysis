@@ -30,10 +30,10 @@ from covariance.filtering import cov_filtering_sum
 from video.export_video import array_to_uncompressed_video
 
 # %% Global variables
-cell_id = 191
+cell_id = 208
 do_plot: bool = True  # Whether to plot the results.
 do_video: bool = True  # Whether to create a video of the STA.
-do_graph: bool = False  # Whether to plot the graph of the covariance matrix.
+do_graph: bool = True  # Whether to plot the graph of the covariance matrix.
 pixel_save: bool = False  # Whether to save the important pixels as numpy array.
 cut: int = 150  # The size of the cutout around the centre of the STA in pixels.
 half_cut: int = int(cut // 2)
@@ -42,9 +42,7 @@ pixel_size: int = (
 )
 
 # %% Load the data
-project_root = Path(
-    rf"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_13_11_2025/Phase_00/4px_20Hz_shuffle_led_535_idx_2"
-)
+project_root = Path(rf"F:\Laura\zebrafish_05_11_2025\Phase_01\4px_20Hz_40mins_shuffle_560_idx_8")
 
 data_path = project_root / rf"cell_{cell_id}/kernel.npy"
 # data = np.load(
@@ -53,27 +51,28 @@ data_path = project_root / rf"cell_{cell_id}/kernel.npy"
 # sta_data = data[3, :, :, :]
 sta_data = np.load(data_path)
 
-ker_sm = smooth_ker(sta_data)
+ker_sm = smooth_ker(sta_data) # LS - smooth the data
 
 # sta_data = bandpass_filter(sta_data, 0.1, 40, 1000)
 # sta_data = np.reshape(sta_data.T, (110, 16, 16))
-sta_var = np.var(sta_data, axis=0)
-original_sta_shape = sta_data.shape
+sta_var = np.var(sta_data, axis=0) # LS - calculate variation of the value of each pixel across time
+original_sta_shape = sta_data.shape # LS - calculate shape of sta data
 # sta_data = sta_data[:, ::4, ::4]
 data_flat = sta_data.reshape(
     original_sta_shape[0], original_sta_shape[1] * original_sta_shape[2]
-)
+) # LS - flatten the sta data so that it goes from T,H,W to T,H*W (where T is time/frames)
 
-sum_img = np.sum(data_flat, axis=0) / 100
-median_sum = np.median(sum_img)
-correction = sum_img - median_sum
-for frame in range(data_flat.shape[0]):
+# LS - illumination correction
+sum_img = np.sum(data_flat, axis=0) / 100 # LS - calculate the sum brightness of every pixel across time
+median_sum = np.median(sum_img) # LS - find the median brightness of pixels
+correction = sum_img - median_sum # LS - calculate the correction required by each pixel to obtain median brightness
+for frame in range(data_flat.shape[0]): # LS - correct each pixel for each time frame
     data_flat[frame, :] = data_flat[frame, :] - correction
 
-sta_data = np.reshape(data_flat, original_sta_shape)
+sta_data = np.reshape(data_flat, original_sta_shape) # LS - reshape corrected sta data back to original 3D shape
 
 # %%
-
+# LS - create extended sta array where you add cut (defined originally as 150 pixels) onto each dimension, and fill all the pixels with the median value of the array.
 sta_extended = (
     np.full(
         (
@@ -83,7 +82,7 @@ sta_extended = (
         ), np.median(sta_data), dtype=float
     )
 )
-
+# LS - do the same as above but for the smoothed data
 ker_sm_extended = (
     np.full(
         (
@@ -94,20 +93,24 @@ ker_sm_extended = (
     )
 )
 
+# LS - place the real STA into the centre of the extended sta array created above
 sta_extended[:, half_cut:-half_cut, half_cut:-half_cut] = sta_data
 ker_sm_extended[:, half_cut:-half_cut, half_cut:-half_cut] = ker_sm
+# LS - redefine original arrays with the extended versions
 sta_data = sta_extended
 ker_sm = ker_sm_extended
-del sta_extended, ker_sm_extended
-original_sta_shape = sta_data.shape
-sta_data = sta_data.astype(float)
-var_extended = np.var(sta_data, axis=0)
+del sta_extended, ker_sm_extended # LS - delete the temporary arrays
+original_sta_shape = sta_data.shape # LS - update the shape variable
+sta_data = sta_data.astype(float) # LS - convert to float (numbers that can have a decimal point)
+var_extended = np.var(sta_data, axis=0) # LS - calculate variance of each pixel across frames in new array
 
 # sta_data = smooth_ker(sta_data, axes=(0))
 
 
 # %%
+# LS - finds the pixel which has the maximum variance across time - this will become the centre of the RF
 _, cY, cX = np.unravel_index(np.argmax(np.var(ker_sm, axis=0)), ker_sm.shape)
+
 # The centre of the STA will be shifted in case the window is too close to the edge.
 if cY > original_sta_shape[1] - int(cut / 2):
     cY = original_sta_shape[1] - int(cut / 2)
@@ -117,29 +120,32 @@ if cY < int(cut / 2):
     cY = int(cut / 2)
 if cX < int(cut / 2):
     cX = int(cut / 2)
-#
 
+# LS - create a square mask of dimensions of the STA, with TRUE values of dimensions cut x cut, centred on cX, cY.
 mask = masking_square(original_sta_shape[1], original_sta_shape[2], (cX, cY), cut, cut)
 # mask[:] = True
 
 # %% Plot the RFs centre
-
-if do_plot:
+# Plotting the var_extended array - the per pixel variance map of the extended STA created previously
+if do_plot: # LS - boolean variable (True or False) - can be set at top of script.
     fig, ax = plot_2d(var_extended, pixel_size, title="Centre of STA variance")
-    ax.plot(cX, cY, "ro")
+    ax.plot(cX, cY, "ro") # LS - plot the centre of the RF on top of the variance map as a red circle
     fig.show()
 
 # %% Plot the smoothed version of the STA
+# LS - plot the per pixel variance map of the non-extended smoothed STA array
 if do_plot:
     fig, ax = plot_2d(
         np.var(ker_sm, axis=0), pixel_size, title="Centre of STA variance, smoothed"
     )
-    # ax.plot(cX, cY, "ro")
-    ax.imshow(mask, alpha=0.1)
+    # ax.plot(cX, cY, "ro") # LS - mark RF centre with red circle
+    ax.imshow(mask, alpha=0.1) # LS - plot the square mask as almost transparent, on top (yellow square in plot)
     fig.show()
 
 # %% Masking, taking subset and calculating the covariance matrix
-subset_flat = sta_data[:, mask]  # sta_data.reshape(
+subset_flat = sta_data[:, mask]  # LS - take subset of the STA that is in the masked region
+
+# sta_data.reshape(
 #     (sta_data.shape[0], sta_data.shape[1] * sta_data.shape[2])
 # )  #
 # subset_flat_norm = np.zeros_like(subset_flat)
@@ -147,45 +153,54 @@ subset_flat = sta_data[:, mask]  # sta_data.reshape(
 #     subset_flat_norm[:, channel] = zscore_sta(subset_flat[:, channel])
 # subset_flat = subset_flat_norm
 
-subset_flat[subset_flat == 0] = np.median(subset_flat)
-subset = np.reshape(subset_flat, (original_sta_shape[0], cut, cut))
-subset_var = np.var(subset, axis=0)
+subset_flat[subset_flat == 0] = np.median(subset_flat) # LS - replace any zero values with median pixel value
+subset = np.reshape(subset_flat, (original_sta_shape[0], cut, cut)) # LS - reshape into 3D shape
+subset_var = np.var(subset, axis=0) # LS - calculate variance of subset
+
+# LS - plot the variance of the subset
 if do_plot:
     fig, ax = plot_2d(
         np.var(subset, axis=0), pixel_size, title="Centre of STA variance"
     )
     fig.show()
+
+# LS - Delete previous covariance matrix (cm) - if it exists
 try:
     del cm
 except NameError:
     pass
+
+# LS - Use cov_filtering_sum function to calculate covariance matrix of the subset of the STA, and return the important pixels and the cm
 important_pixels, cm = cov_filtering_sum(subset, (cut, cut))
-mean_cm = np.mean(cm)
-std_cm = np.std(cm)
+mean_cm = np.mean(cm) # LS - calculate average covariance
+std_cm = np.std(cm) # LS - calculate variance of covariance
 
 # %% Get the important pixel and calculate the covariance with all other pixels for this pixel
+# LS - get the array of the most important pixel - this is how one pixel changes across time
 important_kernel = subset[
     :,
     np.unravel_index(np.argmax(important_pixels), subset.shape)[1],
     np.unravel_index(np.argmax(important_pixels), subset.shape)[2],
 ]
 
+# LS - flatten the STA for all pixels
 sta_data_flat = np.reshape(sta_data, (original_sta_shape[0], -1))
-
+# LS - create array where you calculate the covariance of each pixel to the most important pixel
 covariances = np.zeros(sta_data_flat.shape[1])
 for pixel in range(sta_data_flat.shape[1]):
     covariances[pixel] = np.cov(sta_data_flat[:, pixel], important_kernel)[0, 1]
-
+# LS - reshape the covariance array generated above into the original image shape
 covariances_re = np.reshape(covariances, sta_data.shape[1:])
 
-cov_subset_pos = np.quantile(covariances, 0.95)
-cov_subset_neg = np.quantile(covariances, 0.05)
+cov_subset_pos = np.quantile(covariances, 0.95) # LS - select the most strongly positively covarying pixels with the important pixel
+cov_subset_neg = np.quantile(covariances, 0.05)# LS - select the most strongly negatively covarying pixels with the important pixel
 cov_for_plot_pos = np.copy(covariances_re)
 cov_for_plot_neg = np.copy(covariances_re)
-cov_for_plot_pos[covariances_re < cov_subset_pos] = np.NaN
+cov_for_plot_pos[covariances_re < cov_subset_pos] = np.NaN # LS - set any pixels that are not in top 5% most positively or negatively covarying pixels to NaN
 cov_for_plot_neg[covariances_re > cov_subset_neg] = np.NaN
-max_abs_cov = np.max(np.abs(covariances_re))
+max_abs_cov = np.max(np.abs(covariances_re)) # LS - find max covarying pixel (positive or negative, for scale
 
+# LS - plot most positive covarying pixels in red and most negative covarying pixels in blue.
 if do_plot:
     fig, ax = plt.subplots(1, 1, figsize=(20, 10))
     im = ax.imshow(cov_for_plot_pos, cmap="Reds", vmin=0, vmax=max_abs_cov)
@@ -202,6 +217,7 @@ if do_plot:
     fig.show()
 
 # %% plot only the masked area
+# LS - this section does the same as the section above, but just for the smaller masked region (150x150 region)
 masked_cov_for_pos = cov_for_plot_pos[mask]
 masked_cov_for_neg = cov_for_plot_neg[mask]
 fig, ax = plt.subplots(1, 1, figsize=(20, 10))
@@ -217,11 +233,9 @@ scalebar = ScaleBar(pixel_size, "um", fixed_value=100)
 ax.add_artist(scalebar)
 fig.show()
 
-# %%
-
 # %% get the subset of the original data according to the mask
-subset_cov_mask = np.isnan(masked_cov_for_pos) & np.isnan(masked_cov_for_neg)
-# flip the mask to get the pixels which are not in the subset
+subset_cov_mask = np.isnan(masked_cov_for_pos) & np.isnan(masked_cov_for_neg) #LS - find pixels which are not in top or bottom covariance
+# flip the mask to get the pixels which are not in the subset (LS - i.e. to find the pixels which ARE in the top/bottom of covariances)
 subset_cov_mask = np.logical_not(subset_cov_mask)
 sta_data_subset = subset_flat[:, subset_cov_mask]
 mask_indices = np.where(subset_cov_mask.flatten())[0]
@@ -275,8 +289,9 @@ if do_plot:
     fig.show()
 
 # %% Plot the sum of covariance matrix for the important pixels
-cm_subset = cm[most_important_pixel[0], :]
+cm_subset = cm[most_important_pixel[0], :] # LS - extract all covariance values of most important pixel
 cm_most_important = cm_subset.reshape((cut, cut))
+
 # plot the mean as image
 if do_plot:
     fig, axs = plt.subplots(1, 2, figsize=(20, 20))
@@ -389,7 +404,8 @@ if do_graph:
 # Here, we can look at the subset in more detail.
 important_pixel_threshold = 1000
 if do_plot:
-    fig, ax = plot_2d(subset_var, pixel_size, title="Important pixels", plot_scalebar=False)
+    #fig, ax = plot_2d(subset_var, pixel_size, title="Important pixels", plot_scalebar=False)
+    fig, ax = plot_2d(subset_var, pixel_size, title="Important pixels")
 
     # Calculate marker size based on plotting area and number of pixels
     # Get the axes size in points (default fig size is in inches, need to convert)
@@ -533,7 +549,7 @@ if do_plot:
             ),
             color="blue",
         )
-        # plot the pixel which are not important
+        # plot the pixel which are not important (black)
     ax[1].plot(
         zscore(
             np.mean(

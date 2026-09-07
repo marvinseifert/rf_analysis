@@ -74,10 +74,10 @@ def project_radii_to_xy(radii: List[float]) -> np.ndarray:
 @depends_on("sta_2d_cov_collapse")
 @depends_on("circular_reduction")
 def calculate_stats(
-        recording_config: "Recording_Config",
-        collapse_2d_config: "Collapse_2d_Config",
-        circular_reduction_config: "Circular_Reduction_Config",
-        analysis_folder: str,
+    recording_config: "Recording_Config",
+    collapse_2d_config: "Collapse_2d_Config",
+    circular_reduction_config: "Circular_Reduction_Config",
+    analysis_folder: str,
 ):
     ds = xr.load_dataset(
         recording_config.root_path
@@ -106,9 +106,9 @@ def calculate_stats(
     channel_names = recording_config.channel_names
     with np.errstate(divide="ignore", invalid="ignore"):
         for (cell_position, cell_index), channel in tqdm(
-                product(enumerate(ds.cell_index), channel_names),
-                total=ds.cell_index.shape[0] * len(channel_names),
-                desc="Calculating RF stats",
+            product(enumerate(ds.cell_index), channel_names),
+            total=ds.cell_index.shape[0] * len(channel_names),
+            desc="Calculating RF stats",
         ):
             # %% Calculate RF size
             center_size = [
@@ -127,14 +127,14 @@ def calculate_stats(
             ]
 
             center_sizes_mm2.loc[dict(cell_index=cell_index, channel=channel)] = (
-                    np.asarray(center_size)
-                    * np.asarray(recording_config.channel_configs[channel].pixel_size) ** 2
-                    * 1e-6
+                np.asarray(center_size)
+                * np.asarray(recording_config.channel_configs[channel].pixel_size) ** 2
+                * 1e-6
             )[0]
             surround_sizes_mm2.loc[dict(cell_index=cell_index, channel=channel)] = (
-                    np.asarray(surround_size)
-                    * np.asarray(recording_config.channel_configs[channel].pixel_size) ** 2
-                    * 1e-6
+                np.asarray(surround_size)
+                * np.asarray(recording_config.channel_configs[channel].pixel_size) ** 2
+                * 1e-6
             )[0]
 
             positions = project_radii_to_xy(
@@ -198,5 +198,5 @@ def calculate_stats(
         / analysis_folder
         / "noise_data.nc",
         engine="netcdf4",
-        encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
+        # encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
     )

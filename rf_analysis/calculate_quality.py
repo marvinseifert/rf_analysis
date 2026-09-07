@@ -39,6 +39,16 @@ def quality_on_cells(
             quality[idx, 3] = 0
 
             continue
+
+        except Exception as e:
+            print("\n" + "=" * 80, flush=True)
+            print("FAILED TO LOAD STA", flush=True)
+            print("cell_id:", cell_id, flush=True)
+            print("data_path:", data_path, flush=True)
+            print("error:", repr(e), flush=True)
+            print("=" * 80 + "\n", flush=True)
+
+            raise
         # sta_data = sta_data[cell_id, :, 20:-20, 20:-20]
 
         # sta_data = sta_data[:, ::3, ::3] #decimate_ker(sta_data, 3)
@@ -93,7 +103,8 @@ def quality_on_cells(
 
 def calculate_rf_quality(
     recording_config: "Recording_Config",
-    cpus: int = None,
+    cpus: int = 4,
+    # cpus: int = None, ## will default to 24 if this is None. When memory too big, change to e.g. 4.
     analysis_folder: str = "rf_analysis",
 ):
     # Check if parallel processing  is possible:
@@ -126,7 +137,7 @@ def calculate_rf_quality(
     for channel in recording_config.channel_names:
         folder = recording_config.channel_configs[channel].root_path
         nr_folders = len([f for f in folder.iterdir() if f.is_dir()])
-        cpus = cpu_count()
+        # cpus = cpu_count()
         cell_ids = np.arange(
             0, recording_config.overview.spikes_df["cell_index"].max() + 1
         )
@@ -147,4 +158,6 @@ def calculate_rf_quality(
         pool.close()
         pool.join()
         results = xr.concat(results, dim="cell_index")
-        results.to_netcdf(folder / "quality.nc")
+        results.to_netcdf(folder / "quality.nc")  # in nc format
+
+        np.save(folder / "quality.npy", results.values)  # in .npy format

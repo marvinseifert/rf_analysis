@@ -6,7 +6,7 @@ authors = [
     { name = "Marvin Seifert", email = "m.seifert@sussex.ac.uk" }
 ]
 readme = "README.md"
-requires-python = "==3.10.19"
+requires-python = "==3.10.10"
 
 [tool.poetry.dependencies]
 torch = { version = "2.7.1", source = "torch" }
@@ -15,7 +15,6 @@ numpy = "^1.26.0"
 h5py = "^3.9.0"
 einops = "^0.7.0"
 matplotlib = "^3.8.0"
-jupyterlab = "^4.0.6"
 soundfile = "^0.12.1"
 tqdm = "^4.66.1"
 ipympl = "^0.9.3"
@@ -26,7 +25,6 @@ datashader = "^0.15.2"
 polars = "1.5.0"
 plotly = "^5.17.0"
 panel = "^1.2.3"
-ipywidgets = "^8.1.1"
 sympy = "^1.12"
 pyarrow = "14.0.1"
 holoviews = "^1.17.1"
@@ -39,7 +37,8 @@ statsmodels = "^0.14.0"
 dask = "^2023.10.0"
 pingouin = "^0.5.3"
 networkx = "^3.2.1"
-pyqt5 = "==5.15.11"
+pyqt5 = "=5.15.10"
+pyqt5-qt5 = "=5.15.2"
 zarr = "2.15.0"
 pydantic = "^2.11.7"
 rich = "^14.1.0"
@@ -54,9 +53,13 @@ stnmf = "^1.1.0"
 imageio = { extras = ["ffmpeg"], version = "^2.37.2" }
 numpydantic = "^1.7.0"
 circle-fit = "^0.2.1"
-netcdf4 = "^1.7.3"
+netcdf4 = "==1.7.3"
 aquarel = "^0.0.7"
 ruff = "^0.14.9"
+jupyterlab-widgets = "3.0.9"
+ipywidgets = "8.1.1"
+imagecodecs = "<2026"
+pywavelets = "1.8.0"
 
 
 [[tool.poetry.source]]

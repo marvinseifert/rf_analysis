@@ -125,11 +125,14 @@ def interpolate_pixel_space(array, x_num, y_num):
     corresponding to a flattened 2D image (Row-Major/C-style).
     """
 
-    resampled = array.interp(
-        x=np.linspace(array.x[0], array.x[-1], x_num),
-        y=np.linspace(array.y[0], array.y[-1], y_num),
+    array = array.interp(
+        x=np.linspace(array.coords["x"][0].item(), array.coords["x"][-1].item(), x_num)
     )
-    return resampled
+
+    array = array.interp(
+        y=np.linspace(array.coords["y"][0].item(), array.coords["y"][-1].item(), y_num)
+    )
+    return array
 
 
 def fill_defaults(  # noqa: F821  # noqa: F821
@@ -200,7 +203,7 @@ def fill_defaults(  # noqa: F821  # noqa: F821
             ),
             dtype=np.float32,
         ),
-        dims=["cell_index", "channel", "x", "y"],
+        dims=["cell_index", "channel", "y", "x"],
         coords={
             "cell_index": cell_indices,
             "channel": recording_config.channel_names,
@@ -364,7 +367,7 @@ def sta_2d_cov_collapse(
         / analysis_folder
         / "noise_data.nc",
         engine="netcdf4",
-        # encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
+        #     encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
     )
     # 6. Define default output values (zeros) for all variables to be calculated in the loop
     (
@@ -566,21 +569,16 @@ def sta_2d_cov_collapse(
             cm_final_array[
                 cell_idx,
                 channel_idx,
-                x_grid,
                 y_grid,
-            ] = (
-                cm_most_important_store[cell_idx, channel_idx, :, :]
-                .transpose("y", "x")
-                .values
-            )  # need transpose because of numpy indexing being y x
+                x_grid,
+            ] = cm_most_important_store[cell_idx, channel_idx, :, :]
             rms_final[
                 cell_idx,
                 channel_idx,
-                x_grid,
                 y_grid,
-            ] = (
-                rms_store[cell_idx, channel_idx, :, :].transpose("y", "x").values
-            )
+                x_grid,
+            ] = rms_store[cell_idx, channel_idx, :, :]
+
             # Place the sta time course at the correct time indices
             sta_final_array[cell_idx, channel_idx, :] = sta_single_store[
                 cell_idx, channel_idx, :

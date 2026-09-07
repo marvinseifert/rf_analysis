@@ -9,16 +9,19 @@ import numpy as np
 import einops
 from scipy.spatial.distance import cdist
 from pathlib import Path
+
+from laura_scripts.subunit_sparsity_plots import pixel_size
 from s_nmf.factorization import semi_nmf_hals
 from rf_torch.parameters import Cell_Params
 from pickle import dump, load
 
 
 # %% Load data
+
 data_root = Path(
-    r"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_13_11_2025/Phase_00/4px_20Hz_shuffle_led_535_idx_2"
+    r"F:\Laura\zebrafish_15_01_2026\Phase_00\4px_20Hz_40mins_shuffle_idx_12"
 )
-cell_idx = 263
+cell_idx = 21
 save_root = data_root / f"cell_{cell_idx}"
 
 # %%
@@ -56,38 +59,49 @@ projected_snippets = einops.rearrange(projected_snippets, "n h w -> h w n")  # (
 
 # %% Test sparsity levels
 # !!!!! Warning, this will take some time (30 mins to hours), depending on the number of snippets
-nr_repetitions = 10
+nr_repetitions = 1
 arguments = dict(sparsities=[0, 0.5, 1, 1.5, 2], num_rep=nr_repetitions)
 results = dict()
-nr_components = 30
-
-# %%
-STNMF(
-    projected_snippets,
-    callback=consensus,
-    callback_data=results,
-    callback_kwargs=arguments,
-    r=nr_components,
-)
+nr_components = 150
+#
+# # %%
+# STNMF(
+#     projected_snippets,
+#     callback=consensus,
+#     callback_data=results,
+#     callback_kwargs=arguments,
+#     r=nr_components,
+# )
 # %% Results
-print("The stability of the decomposition at different sparsity levels:")
-for sparsity, stability in zip(arguments["sparsities"], results["cpcc"]):
-    print(f"Sparsity: {sparsity}, Stability: {stability:.4f}")
+# print("The stability of the decomposition at different sparsity levels:")
+# for sparsity, stability in zip(arguments["sparsities"], results["cpcc"]):
+#     print(f"Sparsity: {sparsity}, Stability: {stability:.4f}")
 
 # %% This cell will run STNMF with the best sparsity level found above and with 10 repetitions for consensus analysis
-best_sparsity = np.nanargmax(results["cpcc"])
+# best_sparsity = np.nanargmax(results["cpcc"])
 # run STNMF with the best sparsity
+# stnmf = STNMF(
+#     projected_snippets,
+#     callback=consensus,
+#     callback_kwargs={
+#         "sparsities": arguments["sparsities"][best_sparsity],
+#         "num_rep": nr_repetitions,
+#     },
+#     r=nr_components,
+#     sparsity=arguments["sparsities"][best_sparsity],
+# )
+
+best_sparsity = 1.5
 stnmf = STNMF(
     projected_snippets,
     callback=consensus,
     callback_kwargs={
-        "sparsities": [0.5],
+        "sparsities": [best_sparsity],
         "num_rep": nr_repetitions,
     },
     r=nr_components,
-    sparsity=0.5,  # arguments["sparsities"][best_sparsity],
+    sparsity=best_sparsity,
 )
-
 
 # %% Get the polarities of all subunits
 subunits = stnmf.subunits  # shape: (num_subunits, x, y)
@@ -119,6 +133,7 @@ for c_idx, contour in enumerate(stnmf.outlines):
     )
 fig.show()
 # %%
+
 fig = stnmf.plot(colors="#2980b9")
 
 fig.show()
@@ -157,3 +172,36 @@ fig.show()
 np.save(save_root / "s_nmf_contours.npy", stnmf.outlines)
 np.save(save_root / "s_nmf_subunits.npy", stnmf.subunits)
 np.save(save_root / "snippet_mse.npy", mse_snippets)
+
+# %% Subunit kernel plots
+
+# Normalize weights (K, N)
+weights = stnmf.h / stnmf.h.sum(axis=1, keepdims=True)
+
+# Normalize subunits (K, X, Y)
+subunits_norm = subunits / np.linalg.norm(subunits, axis=(1, 2), keepdims=True)
+
+# Compute all subunit STAs at once: (K, T, X, Y)
+sub_sta_full = np.tensordot(weights, snippets, axes=(1, 0))
+
+# Project each STA onto its corresponding subunit → (K, T)
+nr_components = sub_sta_full.shape[0]
+T = sub_sta_full.shape[1]
+
+temporal_kernels = np.empty((nr_components, T))
+
+for k in range(nr_components):
+    temporal_kernels[k] = np.tensordot(
+        sub_sta_full[k], subunits_norm[k], axes=([1, 2], [0, 1])  # (T, X, Y)  # (X, Y)
+    )
+
+# Plot
+fig, ax = plt.subplots(10, 15, figsize=(20, 20))
+ax = ax.flatten()
+
+for k in range(nr_components):
+    ax[k].plot(temporal_kernels[k])
+    ax[k].set_title(f"subunit={k}")
+
+plt.tight_layout()
+fig.show()

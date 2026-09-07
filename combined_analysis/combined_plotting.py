@@ -10,6 +10,7 @@ from organize.configs import Recording_Config
 from aquarel import load_theme
 import matplotlib
 
+# %%
 coolwarm_heatmap = matplotlib.colormaps["coolwarm"]
 heatmap_max = coolwarm_heatmap(1.0)
 heatmap_min = coolwarm_heatmap(0.0)
@@ -35,10 +36,10 @@ def cutout_nans(data, inset=0):
 # %%
 # First, we need to load the dataset
 path_to_data = Path(
-    "/home/mawa/nas_a/Marvin/chicken_13_05_2025/Phase_00/noise_analysis_test/noise_data.nc"
+    r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data.nc"
 )
 dataset = xr.load_dataset(path_to_data)
-
+# %%
 rec_config = Recording_Config.load_from_root_json(path_to_data.parent)
 
 # %%
@@ -46,7 +47,11 @@ rec_config = Recording_Config.load_from_root_json(path_to_data.parent)
 # This plot plots rfs of channels side by side for the best cell
 dataset["quality"] = dataset["quality"].fillna(0)
 best_cell = dataset["cell_index"][
-    dataset["quality"].mean(dim="channel").argmax("cell_index")
+    dataset["quality"]
+    .mean(dim="channel")
+    .argmax(
+        "cell_index"
+    )  # MEAN rf - so if one channel high and one really low may get empty plots
 ]
 # or sorted cells:
 sorted_cells = (
@@ -83,7 +88,7 @@ for ax, channel in zip(axs, dataset.channel.values):
 fig.show()
 # %% Alternatively, plot on top of each other using datashader
 
-combined = dataset["rms"].sel(cell_index=best_cell)
+combined = dataset["rms"].sel(cell_index=50)
 
 rgb_image = xr.DataArray(
     np.zeros((combined.y.size, combined.x.size, 3), dtype=np.uint8),
@@ -98,8 +103,9 @@ for i, channel in enumerate(dataset.channel.values):
         rgb_image.loc[:, :, 0] = (channel_data * 255).astype(np.uint8)
     elif rec_config.channel_colours[i] == "green":
         rgb_image.loc[:, :, 1] = (channel_data * 255).astype(np.uint8)
-    elif rec_config.channel_colours[i] == "grey":
+    elif rec_config.channel_colours[i] == "white":
         rgb_image.loc[:, :, 2] = (channel_data * 255).astype(np.uint8)
+
 
 # need to find the first and last non-zero pixel in x and y to crop the image
 x_slice = slice(
@@ -121,7 +127,7 @@ ax.set_ylabel("y position (µm)")
 fig.show()
 
 # %% Plot the first 10 best cells in a grid
-n_cells = 20
+n_cells = 10
 n_cols = 5
 n_rows = int(np.ceil(n_cells / n_cols))
 
@@ -141,7 +147,7 @@ for i in range(n_cells):
     for j, channel in enumerate(dataset.channel.values):
         channel_data = combined.sel(channel=channel).values
         channel_data = channel_data / np.nanmax(np.abs(channel_data))
-        if rec_config.channel_colours[j] == "white":
+        if rec_config.channel_colours[j] == "red":
             rgb_image.loc[:, :, 0] = (channel_data * 255).astype(np.uint8)
         elif rec_config.channel_colours[j] == "green":
             rgb_image.loc[:, :, 1] = (channel_data * 255).astype(np.uint8)
@@ -184,34 +190,97 @@ for i in range(n_cells):
 fig.show()
 
 # %% PLot overlay of all cells in one channel
-channel_to_plot = "560_nm"
+channel_to_plot = "12px_20Hz_shuffle"
 # create maximum intensity projection over all cells
-combined = dataset["rms"].sel(channel=channel_to_plot)
+combined = dataset["cm_most_important"].sel(channel=channel_to_plot)
 combined = combined / combined.max(dim=["x", "y"], skipna=True)
 combined = combined.fillna(0)
 max_projection = combined.max(dim="cell_index")
-
-x_slice = slice(
-    np.where(np.any(max_projection > 0, axis=0))[0][0],
-    np.where(np.any(max_projection > 0, axis=0))[0][-1] + 1,
-    1,
-)
-y_slice = slice(
-    np.where(np.any(max_projection > 0, axis=1))[0][0],
-    np.where(np.any(max_projection > 0, axis=1))[0][-1] + 1,
-    1,
-)
+# # If you want to crop it:
+# x_slice = slice(
+#     np.where(np.any(max_projection > 0, axis=0))[0][0],
+#     np.where(np.any(max_projection > 0, axis=0))[0][-1] + 1,
+#     1,
+# )
+# y_slice = slice(
+#     np.where(np.any(max_projection > 0, axis=1))[0][0],
+#     np.where(np.any(max_projection > 0, axis=1))[0][-1] + 1,
+#     1,
+# )
 
 fig, ax = plt.subplots(figsize=(10, 10))
-max_projection.isel(x=x_slice, y=y_slice).plot.imshow(
-    ax=ax, cmap="gray", vmin=0, vmax=1
+# If you want to crop it:
+# max_projection.isel(x=x_slice, y=y_slice).plot.imshow(
+#     ax=ax, cmap="coolwarm", vmin=0, vmax=1
+# )
+
+# If you don't want to crop it:
+max_projection.plot.imshow(
+    ax=ax,
+    cmap="coolwarm",
+    vmin=-1,
+    vmax=1,
+    ylim=(-1000, 1000),
+    xlim=(-1000, 1000),
 )
+
+ax.set_xlabel("x position (µm)")
+ax.set_ylabel("y position (µm)")
+fig.show()
+# %% Same as above, but only for cells with tilt < X
+
+channel_to_plot = "12px_20Hz_shuffle"
+
+# Get the RF / covariance maps for this channel
+combined = dataset["cm_most_important"].sel(channel=channel_to_plot)
+qi_limit = 20
+tilt_limit = 0.75
+# Make the cell-selection mask for the same channel
+good_cells = (dataset["quality"].sel(channel=channel_to_plot) > qi_limit) & (
+    dataset["tilt"].sel(channel=channel_to_plot) < tilt_limit
+)
+
+# Keep only cells passing both criteria
+combined = combined.sel(cell_index=good_cells.cell_index[good_cells])
+
+print(f"Plotting {combined.sizes['cell_index']} cells")
+
+# Normalise each cell independently
+combined = combined / np.abs(combined).max(dim=["x", "y"], skipna=True)
+
+# Replace NaNs with 0
+combined = combined.fillna(0)
+
+# Maximum projection across selected cells
+max_projection = combined.max(dim="cell_index")
+
+# Crop to non-zero region
+nonzero = max_projection != 0
+
+x_nonzero = np.where(nonzero.any(dim="y").values)[0]
+y_nonzero = np.where(nonzero.any(dim="x").values)[0]
+
+x_slice = slice(x_nonzero[0], x_nonzero[-1] + 1)
+y_slice = slice(y_nonzero[0], y_nonzero[-1] + 1)
+
+# Plot
+fig, ax = plt.subplots(figsize=(10, 10))
+
+max_projection.isel(x=x_slice, y=y_slice).plot.imshow(
+    ax=ax,
+    cmap="coolwarm",
+    vmin=-1,
+    vmax=1,
+    ylim=(-1000, 1000),
+    xlim=(-1000, 1000),
+)
+ax.set_title(f"Channel:{channel_to_plot}; quality: > {qi_limit}; tilt: < {tilt_limit}")
 ax.set_xlabel("x position (µm)")
 ax.set_ylabel("y position (µm)")
 fig.show()
 # %% Go mental and plot all stats for best cell
-best_cell = sorted_cells[0]  # dataset["quality"].argmax("cell_index").values[0]
-best_cell_data = dataset.sel(cell_index=best_cell)
+# best_cell = sorted_cells[10]  # dataset["quality"].argmax("cell_index").values[0]
+best_cell_data = dataset.sel(cell_index=best_cell)  # can change cell here.
 # 3rd column needs to be polar plot of locations
 column_ratios = [1.5, 1.5, 1, 1, 1, 1, 1]
 
@@ -224,6 +293,7 @@ fig, axs = plt.subplots(
     # 1. Define custom column widths using gridspec_kw
     gridspec_kw={"width_ratios": column_ratios},
 )
+fig.patch.set_alpha(0.0)
 axs[0, 2].remove()
 axs[0, 2] = fig.add_subplot(2, 7, 3, projection="polar")
 axs[0, 3].remove()
@@ -233,6 +303,8 @@ axs[1, 2] = fig.add_subplot(2, 7, 10, projection="polar")
 axs[1, 3].remove()
 axs[1, 3] = fig.add_subplot(2, 7, 11, projection="polar")
 for c_idx, channel in enumerate(dataset.channel.values):
+    if np.all(np.isnan(best_cell_data.sel(channel=channel)["rms"].values)):
+        continue
     cutout_nans(best_cell_data.sel(channel=channel)["rms"]).plot.imshow(
         ax=axs[c_idx, 0],
         cmap="gray",
@@ -375,12 +447,16 @@ for c_idx, channel in enumerate(dataset.channel.values):
         axs[c_idx, 5].set_title("")
         axs[c_idx, 6].set_title("")
 # need to increase the margin between subplots
+fig.suptitle(
+    f"Cell {best_cell}, channel: {dataset.channel[0].item()}, {dataset.channel[1].item()}"
+)
 fig.subplots_adjust(hspace=0.4, wspace=0.4)
 fig.show()
 plt.close("all")
 
-# %% Go mental an plot all stats for best cell
-best_cell = sorted_cells[20]  # dataset["quality"].argmax("cell_index").values[0]
+# %% Go mental and plot all stats for best cell
+# best_cell = sorted_cells[0].values
+# best_cell = sorted_cells[0]  # dataset["quality"].argmax("cell_index").values[0]
 best_cell_data = dataset.sel(cell_index=best_cell)
 # 3rd column needs to be polar plot of locations
 column_ratios = [1.5, 1.5, 1, 1, 1, 1, 1]

@@ -27,9 +27,9 @@ heatmap_min = coolwarm_heatmap(0.0)
 theme = load_theme("scientific")
 theme.apply()
 # %% Global parameters
-channel_colours = ["red", "green", "black"]
+channel_colours = ["red", "green", "blue"]
 channel_plotting_order = np.array(
-    ["610_nm", "535_nm", "white"]
+    ["4px_20Hz_40mins_shuffle", "12px_20Hz_shuffle"]
 )  # If you define more than 3, only the first 3 will be used for RGB overlays
 
 for_clustering = [
@@ -41,16 +41,18 @@ for_clustering = [
 # %% Data inputs
 # We can load datasets from several different recordings.
 path_to_data = [
-    Path(
-        "/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_13_11_2025/Phase_00/noise_analysis/noise_data.nc"
-    ),
-    Path(
-        r"/run/user/1000/gvfs/smb-share:server=mea_nas_25.local,share=root/Marvin/chicken_18_11_2025/Phase_00/noise_analysis/noise_data.nc"
-    ),
+    # Path(r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data.nc"),
+    Path(r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data.nc"),
+    Path(r"F:\Laura\zebrafish_15_01_2026\Phase_00\noise_analysis\noise_data.nc"),
+    # Path(r"F:\Laura\zebrafish_19_02_2026\Phase_00\noise_analysis\noise_data.nc"),
+    Path(r"F:\Laura\zebrafish_25_02_2026\Phase_00\noise_analysis\noise_data.nc"),
+    Path(r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data.nc"),
+    # Path(r"F:\Laura\zebrafish_05_03_2026\Phase_00\noise_analysis\noise_data.nc"),
 ]
 
 # %% Output parameters
-save_path = Path(r"/media/mawa/New Volume/cluster_all/test")
+# save_path = Path(r"/media/mawa/New Volume/cluster_all/test")
+save_path = Path(r"F:\Laura\combined_cluster_analysis_2.0_12px_&_4px")
 warnings.warn(
     f"Warning, all figures existing in {save_path} will be removed when running the next cell!"
 )
@@ -59,12 +61,27 @@ zoom = (
     2  # This can zoom the heatmaps by a factor, set to 1 if you want to original size
 )
 # %%
-
-
 # Load the config files:
 configs = [Recording_Config.load_from_root_json(path.parent) for path in path_to_data]
 
+# Sanity checks
+output_file = save_path / "sanity_check.txt"
 
+with open(output_file, "w") as f:
+    # Sanity checks: channels
+    for config in configs:
+        line = f"{config.overview.name}: {config.channel_names}"
+        print(line)
+        f.write(line + "\n")
+
+    f.write("\n" + "=" * 50 + "\n\n")
+
+    # Sanity checks: cell counts
+    for path, config in zip(path_to_data, configs):
+        ds = xr.open_dataset(path)
+        line = f"{config.overview.name}: {ds.sizes['cell_index']} cells"
+        print(line)
+        f.write(line + "\n")
 # %% check which channels can be used for clustering matching channel names
 channel_names = []
 for config in configs:
@@ -434,39 +451,87 @@ for label_idx, label in tqdm(
         if cm_cutout is None and rms_cutout is None:  # No data, so dont need to plot
             # Switch subplot off
             continue
+        # # Now plot the overlay in the last column
+        # rgb_image = rms_cluster_flat.sel(
+        #     {
+        #         "flat_index": selected_indices[cell_to_plot],
+        #     }
+        # ).transpose("x", "y", "channel")
+        # rgb_image_mean = rgb_image.mean(dim="channel", skipna=True)
+        # rgb_slices = get_non_nan_slices(rgb_image_mean.values)
+        # rgb_image_cut = rgb_image.isel(x=rgb_slices[0], y=rgb_slices[1])
+        # rgb_image_cut = rgb_image_cut.fillna(0)
+        # # change to uint8
+        # normalized = (
+        #     (
+        #         rgb_image_cut.values
+        #         - rgb_image_cut.values.min(axis=(0, 1), keepdims=True)
+        #     )
+        #     / (
+        #         rgb_image_cut.values.max(axis=(0, 1), keepdims=True)
+        #         - rgb_image_cut.values.min(axis=(0, 1), keepdims=True)
+        #     )
+        #     * 255
+        # )
+        # rgb_image_cut = rgb_image_cut.copy(data=normalized.astype(np.uint8))
+        # ax[plotting_position + 1, -1].imshow(
+        #     rgb_image_cut.values,
+        #     extent=zoom_extent(rgb_image_cut, zoom),
+        # )
+        # ax[plotting_position + 1, -1].set_xticks([])
+        # ax[plotting_position + 1, -1].set_yticks([])
+        # ax[plotting_position + 1, -1].spines["top"].set_visible(False)
+        # ax[plotting_position + 1, -1].spines["right"].set_visible(False)
+        # ax[plotting_position + 1, -1].spines["left"].set_visible(False)
+        # ax[plotting_position + 1, -1].spines["bottom"].set_visible(False)
+
+        #### SECTION ADDED IN AS REPLACEMENT for commented out plotting section above - due to only having 2 channels and trying to plot RGB
         # Now plot the overlay in the last column
         rgb_image = rms_cluster_flat.sel(
-            {
-                "flat_index": selected_indices[cell_to_plot],
-            }
+            {"flat_index": selected_indices[cell_to_plot]}
         ).transpose("x", "y", "channel")
+
         rgb_image_mean = rgb_image.mean(dim="channel", skipna=True)
         rgb_slices = get_non_nan_slices(rgb_image_mean.values)
         rgb_image_cut = rgb_image.isel(x=rgb_slices[0], y=rgb_slices[1])
         rgb_image_cut = rgb_image_cut.fillna(0)
-        # change to uint8
-        normalized = (
-            (
-                rgb_image_cut.values
-                - rgb_image_cut.values.min(axis=(0, 1), keepdims=True)
+
+        rgb_vals = rgb_image_cut.values
+
+        # ---- handle number of channels ----
+        if rgb_vals.shape[2] == 3:
+            # proper RGB
+            min_val = rgb_vals.min(axis=(0, 1), keepdims=True)
+            max_val = rgb_vals.max(axis=(0, 1), keepdims=True)
+            denom = max_val - min_val
+            denom[denom == 0] = 1e-8
+
+            rgb_uint8 = ((rgb_vals - min_val) / denom * 255).astype(np.uint8)
+
+            ax[plotting_position + 1, -1].imshow(
+                rgb_uint8,
+                extent=zoom_extent(rgb_image_cut, zoom),
             )
-            / (
-                rgb_image_cut.values.max(axis=(0, 1), keepdims=True)
-                - rgb_image_cut.values.min(axis=(0, 1), keepdims=True)
+
+        else:
+            # fallback → grayscale
+            mean_img = rgb_vals.mean(axis=2)
+
+            ax[plotting_position + 1, -1].imshow(
+                mean_img,
+                extent=zoom_extent(rgb_image_cut, zoom),
+                cmap="gray",
             )
-            * 255
-        )
-        rgb_image_cut = rgb_image_cut.copy(data=normalized.astype(np.uint8))
-        ax[plotting_position + 1, -1].imshow(
-            rgb_image_cut.values,
-            extent=zoom_extent(rgb_image_cut, zoom),
-        )
+
+        # clean axes (same as before)
         ax[plotting_position + 1, -1].set_xticks([])
         ax[plotting_position + 1, -1].set_yticks([])
         ax[plotting_position + 1, -1].spines["top"].set_visible(False)
         ax[plotting_position + 1, -1].spines["right"].set_visible(False)
         ax[plotting_position + 1, -1].spines["left"].set_visible(False)
         ax[plotting_position + 1, -1].spines["bottom"].set_visible(False)
+
+        ### end of added section ###
 
         plotting_position += 2
     fig.savefig(save_path / f"cluster_{label}_heatmaps.png", dpi=300)

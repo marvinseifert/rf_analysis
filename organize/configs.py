@@ -20,7 +20,7 @@ from functools import partial
 import json
 from rf_analysis import calculate_quality
 import warnings
-from combined_analysis.reduce_all import sta_2d_cov_collapse, circular_reduction
+from combined_analysis.reduce_all_old import sta_2d_cov_collapse, circular_reduction
 import numpy as np
 from stats.summary import calculate_stats
 
@@ -102,9 +102,13 @@ class Recording_Config(Loadable_Model):
 
         self.channel_names.append(name)
         self.channel_colours.append(colour)
-        stimulus_name = self.overview.stimulus_df.query(
-            f"stimulus_index=={stimulus_id}"
-        )["stimulus_name"].values[0]
+        stimulus_name = (
+            self.overview.stimulus_df.query(f"stimulus_index=={stimulus_id}")[
+                "stimulus_name"
+            ]
+            .values[0]
+            .strip()
+        )
         channel_path = self.root_path / f"{stimulus_name}_idx_{stimulus_id}"
         # check all folders with ending cell_idx inside channel_path
         self.channel_configs[name] = Noise_Stimulus_Config(
@@ -202,8 +206,8 @@ class Collapse_2d_Config(Loadable_Model):
         for channel_name in self.recording_config.channel_configs:
             cut_size_px = (
                 (
-                        self.cut_size_um
-                        / self.recording_config.channel_configs[channel_name].pixel_size
+                    self.cut_size_um
+                    / self.recording_config.channel_configs[channel_name].pixel_size
                 )
                 .round()
                 .astype(int)
@@ -214,15 +218,15 @@ class Collapse_2d_Config(Loadable_Model):
             max_cut_size_px[channel_name] = cut_size_px
             max_half_cut_size_px[channel_name] = half_cut
             extended_cut_size_px[channel_name] = (
-                    self.recording_config.channel_configs[channel_name].image_shape
-                    + cut_size_px
+                self.recording_config.channel_configs[channel_name].image_shape
+                + cut_size_px
             )
             border_buffer_px[channel_name] = (
-                                                     extended_cut_size_px[channel_name]
-                                                     - self.recording_config.channel_configs[channel_name].image_shape
-                                             ) // 2
+                extended_cut_size_px[channel_name]
+                - self.recording_config.channel_configs[channel_name].image_shape
+            ) // 2
             max_radius_px[channel_name] = (
-                    np.sqrt(cut_size_px.max() ** 2 + cut_size_px.max() ** 2) // 2
+                np.sqrt(cut_size_px.max() ** 2 + cut_size_px.max() ** 2) // 2
             )
 
         object.__setattr__(self, "cut_size_px", max_cut_size_px)
@@ -266,11 +270,11 @@ class Analysis_Pipeline:
     }
 
     def __init__(
-            self,
-            analysis_folder: str,
-            recording_config: Recording_Config,
-            other_configs: List[Any] = None,
-            tasks: Optional[List[Callable[..., Any]]] = None,
+        self,
+        analysis_folder: str,
+        recording_config: Recording_Config,
+        other_configs: List[Any] = None,
+        tasks: Optional[List[Callable[..., Any]]] = None,
     ):
         if other_configs is None:
             other_configs = []
@@ -385,7 +389,7 @@ class Analysis_Pipeline:
         config_types = [type(config).__name__ for config in self.configs.values()]
 
         with open(
-                self.root_output_folder / self.analysis_folder / "tasks_configs.json", "w"
+            self.root_output_folder / self.analysis_folder / "tasks_configs.json", "w"
         ) as f:
             json.dump(
                 {
@@ -402,7 +406,7 @@ class Analysis_Pipeline:
 
     def load_existing(self):
         task_json_path = (
-                self.root_output_folder / self.analysis_folder / "tasks_configs.json"
+            self.root_output_folder / self.analysis_folder / "tasks_configs.json"
         )
         configs = []
         with open(task_json_path, "r") as f:
