@@ -1,3 +1,5 @@
+# ff_plots_by_tilt.py — v2 version for v2 data (2026-11-18). The original (v1) is in laura_scripts/legacy/Elongated receptive fields/ff_plots_by_tilt.py.
+#   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
 import sys
 
 sys.path.extend(["/home/mawa/PycharmProjects/polarspike"])
@@ -25,7 +27,7 @@ import matplotlib
 # %% First, load the RF dataset
 
 path_to_data = Path(
-    r"F:\Laura\zebrafish_22_07_2026\Phase_00\noise_analysis\noise_data.nc"
+    r"F:\Laura\zebrafish_22_07_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
 
 dataset = xr.load_dataset(path_to_data)

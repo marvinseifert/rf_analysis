@@ -40,7 +40,7 @@ top_cells_dict = {
 top_cells = top_cells_dict[channel]
 print(len(top_cells))
 # %% Load and run functions
-from laura_scripts.receptive_field_functions import (
+from laura_scripts.legacy.RF_analysis.receptive_field_functions import (
     plot_mse_rf,
     plot_centre_surrounds,
     plot_sta,

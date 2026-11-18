@@ -1,3 +1,6 @@
+# Angle_histogram.py — v2 version for v2 data (2026-11-18). The original (v1) is in laura_scripts/legacy/Elongated receptive fields/Angle_histogram.py.
+#   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
+#   * angle is now in the stimulus frame (= 90° - old); pairwise angle differences are unchanged
 # %% Imports
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -7,28 +10,28 @@ import xarray as xr
 # %% Dataset paths
 dataset_paths = {
     # "dataset_1": Path(
-    #     r"F:\Laura\zebrafish_05_11_2025\Phase_00\noise_analysis\noise_data.nc"
+    #     r"F:\Laura\zebrafish_05_11_2025\Phase_00\noise_analysis\noise_data_v2.nc"
     # ),
     "dataset_2": Path(
-        r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data.nc"
+        r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc"
     ),
     "dataset_3": Path(
-        r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data.nc"
+        r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data_v2.nc"
     ),
     # "dataset_4": Path(
-    #     r"F:\Laura\zebrafish_18_12_2025\Phase_00\noise_analysis\noise_data.nc"
+    #     r"F:\Laura\zebrafish_18_12_2025\Phase_00\noise_analysis\noise_data_v2.nc"
     # ),
     "dataset_5": Path(
-        r"F:\Laura\zebrafish_15_01_2026\Phase_00\noise_analysis\noise_data.nc"
+        r"F:\Laura\zebrafish_15_01_2026\Phase_00\noise_analysis\noise_data_v2.nc"
     ),
     "dataset_6": Path(
-        r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data.nc"
+        r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"
     ),
     # "dataset_7": Path(
-    #     r"F:\Laura\zebrafish_13_05_2026\Phase_00\noise_analysis\noise_data.nc"
+    #     r"F:\Laura\zebrafish_13_05_2026\Phase_00\noise_analysis\noise_data_v2.nc"
     # ),
     # "dataset_8": Path(
-    #     r"F:\Laura\zebrafish_14_05_2026\Phase_00\noise_analysis\noise_data.nc"
+    #     r"F:\Laura\zebrafish_14_05_2026\Phase_00\noise_analysis\noise_data_v2.nc"
     # ),
 }
 
@@ -529,7 +532,7 @@ plot_multipanel_histograms(
 # # %%
 # # Load dataset(s)
 # path_to_data = Path(
-#     r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data.nc"
+#     r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc"
 # )
 # ds = xr.load_dataset(path_to_data)
 # # %%

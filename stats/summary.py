@@ -1,4 +1,11 @@
+# WARNING (2026-11-18): do not use calculate_stats from this file. It multiplies
+# RF areas by pixel_size² although the outlines are already in µm, so
+# center_size_mm2 / surround_size_mm2 come out pixel_size² too large (4x for 2 µm
+# pixels). It also expects outlines from reduce_all.py, which are 1.41x too large.
+# Use stats/summary_v2.py (with combined_analysis/reduce_all_v2.py, or
+# RF_pipeline_v2.py) instead. This file is kept unchanged for reference.
 from __future__ import annotations
+import warnings
 from typing import List, Dict
 import xarray as xr
 import numpy as np
@@ -79,6 +86,11 @@ def calculate_stats(
     circular_reduction_config: "Circular_Reduction_Config",
     analysis_folder: str,
 ):
+    warnings.warn(
+        "stats/summary.py calculate_stats gives RF areas pixel_size² too large. "
+        "Use stats/summary_v2.py (RF_pipeline_v2.py) instead.",
+        stacklevel=2,
+    )
     ds = xr.load_dataset(
         recording_config.root_path
         / recording_config.output_folder

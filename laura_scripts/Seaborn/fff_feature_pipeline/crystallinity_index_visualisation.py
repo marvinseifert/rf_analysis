@@ -1,3 +1,21 @@
+# crystallinity_index_visualisation.py — v2 version, using the v2 alignment (2026-11-18).
+# The original (v1) is in laura_scripts/legacy/Seaborn/fff_feature_pipeline/crystallinity_index_visualisation.py.
+#   * reads fff_data_v2.nc (RF centres + cone regularity from build_fff_dataset.py)
+#   * cone-image geometry from alignment_geometry.load_alignment_geometry (shared):
+#     stimulus centre recomputed from the clicked edge; displayed size from the
+#     recording's v2 alignment cache, stimulus pixel size from noise_params.json.
+import sys
+from pathlib import Path as _Path
+
+_PROJECT_ROOT = _Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from laura_scripts.Alignment_pipeline.alignment_geometry import (
+    dataset_um_per_px,
+    load_alignment_geometry,
+)
+
 # %% Visualise cone mosaics for RFs spanning cone crystallinity
 #
 # Loads multiple recordings, pools all cells, then selects:
@@ -53,49 +71,49 @@ RECORDINGS = [
     {
         "recording_id": "zebrafish_14_08_2026",
         "FFF_DATA_PATH": Path(
-            r"F:\Laura\zebrafish_14_08_2026" r"\Phase_00\fff_analysis\fff_data.nc"
+            r"F:\Laura\zebrafish_14_08_2026" r"\Phase_00\fff_analysis\fff_data_v2.nc"
         ),
         "CONE_IMAGE_PATH": Path(
             r"C:\Users\Laura Steel\Box\SUSSEX\Experiments\Zebrafish\Experiments\Imaging\20260814_dragonfly_microscope\14_08_2026_cones.tif"
         ),
         "ALIGNMENT_CACHE_PATH": Path(
-            r"F:\Laura\zebrafish_14_08_2026\alignment_videos\zebrafish_14_08_2026_phase_00_alignment_cache.npz"
+            r"F:\Laura\zebrafish_14_08_2026\alignment_videos\zebrafish_14_08_2026_phase_00_alignment_cache_v2.npz"
         ),
     },
     {
         "recording_id": "zebrafish_22_07_2026",
         "FFF_DATA_PATH": Path(
-            r"F:\Laura\zebrafish_22_07_2026" r"\Phase_00\fff_analysis\fff_data.nc"
+            r"F:\Laura\zebrafish_22_07_2026" r"\Phase_00\fff_analysis\fff_data_v2.nc"
         ),
         "CONE_IMAGE_PATH": Path(
             r"C:\Users\Laura Steel\Box\SUSSEX\Experiments\Zebrafish\Experiments\Imaging\20260722_dragonfly_microscope\22_07_2026_cones.jpg"
         ),
         "ALIGNMENT_CACHE_PATH": Path(
-            r"F:\Laura\zebrafish_22_07_2026\alignment_videos\zebrafish_22_07_2026_phase_00_alignment_cache.npz"
+            r"F:\Laura\zebrafish_22_07_2026\alignment_videos\zebrafish_22_07_2026_phase_00_alignment_cache_v2.npz"
         ),
     },
     {
         "recording_id": "zebrafish_15_05_2026",
         "FFF_DATA_PATH": Path(
-            r"F:\Laura\zebrafish_15_05_2026" r"\Phase_00\fff_analysis\fff_data.nc"
+            r"F:\Laura\zebrafish_15_05_2026" r"\Phase_00\fff_analysis\fff_data_v2.nc"
         ),
         "CONE_IMAGE_PATH": Path(
             r"C:\Users\Laura Steel\Box\SUSSEX\Experiments\Zebrafish\Experiments\Imaging\20260515_dragonfly_microscope\15_05_2026_cones.jpg"
         ),
         "ALIGNMENT_CACHE_PATH": Path(
-            r"F:\Laura\zebrafish_15_05_2026\alignment_videos\zebrafish_15_05_2026_phase_00_alignment_cache.npz"
+            r"F:\Laura\zebrafish_15_05_2026\alignment_videos\zebrafish_15_05_2026_phase_00_alignment_cache_v2.npz"
         ),
     },
     {
         "recording_id": "zebrafish_14_05_2026",
         "FFF_DATA_PATH": Path(
-            r"F:\Laura\zebrafish_14_05_2026" r"\Phase_00\fff_analysis\fff_data.nc"
+            r"F:\Laura\zebrafish_14_05_2026" r"\Phase_00\fff_analysis\fff_data_v2.nc"
         ),
         "CONE_IMAGE_PATH": Path(
             r"C:\Users\Laura Steel\Box\SUSSEX\Experiments\Zebrafish\Experiments\Imaging\20260514_dragonfly_microscope\14_05_2026_cones.jpg"
         ),
         "ALIGNMENT_CACHE_PATH": Path(
-            r"F:\Laura\zebrafish_14_05_2026\alignment_videos\zebrafish_14_05_2026_phase_00_alignment_cache.npz"
+            r"F:\Laura\zebrafish_14_05_2026\alignment_videos\zebrafish_14_05_2026_phase_00_alignment_cache_v2.npz"
         ),
     },
 ]
@@ -260,121 +278,18 @@ def normalise_for_display(
 # ------------------------------------------------------------
 
 
-def load_projected_um_to_cone_transform(
-    alignment_cache_path,
-):
+def load_projected_um_to_cone_transform(recording):
     """
-    Reconstruct the same coordinate chain used by the alignment
-    pipeline.
-
-    Alignment cache contains:
-
-        Image 2 microscope pixels -> Image 3 pixels
-
-    Image 1 (cone mosaic) shares the microscope coordinate system
-    with Image 2.
-
-    We construct:
-
-        projected stimulus µm
-                ->
-        Image 3 pixels
-                ->
-        cone mosaic pixels
+    projected stimulus µm -> cone-image pixels, from the shared v2 geometry
+    (inverse of A_image1_to_projected_um). The stimulus centre is recomputed from
+    the clicked edge with this recording's displayed size.
     """
-
-    with np.load(
-        alignment_cache_path,
-        allow_pickle=True,
-    ) as cache:
-        tform_2_to_3 = np.asarray(
-            cache["tform_2_to_3_params"],
-            dtype=float,
-        )
-
-        um_per_px_image3 = float(np.asarray(cache["um_per_px_image3"]).squeeze())
-
-        stim_edge_top_px = np.asarray(
-            cache["stim_edge_top_px"],
-            dtype=float,
-        ).reshape(2)
-
-        stim_edge_bottom_px = np.asarray(
-            cache["stim_edge_bottom_px"],
-            dtype=float,
-        ).reshape(2)
-
-        visual_stim_center_px_image3 = np.asarray(
-            cache["visual_stim_center_px_image3"],
-            dtype=float,
-        ).reshape(2)
-
-    # --------------------------------------------------------
-    # Direction of stimulus DOWN in Image 3
-    # --------------------------------------------------------
-
-    edge_vector = stim_edge_bottom_px - stim_edge_top_px
-
-    edge_length = np.linalg.norm(edge_vector)
-
-    if edge_length == 0:
-        raise ValueError("Clicked stimulus edge has zero length.")
-
-    stim_down_unit_px = edge_vector / edge_length
-
-    # --------------------------------------------------------
-    # Stimulus RIGHT direction
-    # --------------------------------------------------------
-
-    stim_right_unit_px = np.array(
-        [
-            stim_down_unit_px[1],
-            -stim_down_unit_px[0],
-        ]
+    noise_analysis_folder = Path(recording["FFF_DATA_PATH"]).parent.parent / "noise_analysis"
+    geometry = load_alignment_geometry(
+        recording["ALIGNMENT_CACHE_PATH"],  # v2 cache: clicks + displayed size
+        dataset_assumed_um_per_px=dataset_um_per_px(noise_analysis_folder),
     )
-
-    # --------------------------------------------------------
-    # Pixels per µm in Image 3
-    # --------------------------------------------------------
-
-    px_per_um_image3 = 1.0 / um_per_px_image3
-
-    # --------------------------------------------------------
-    # projected µm -> Image 3 pixels
-    # --------------------------------------------------------
-
-    A_projected_um_to_image3 = np.eye(
-        3,
-        dtype=float,
-    )
-
-    A_projected_um_to_image3[:2, 0] = stim_right_unit_px * px_per_um_image3
-
-    A_projected_um_to_image3[:2, 1] = stim_down_unit_px * px_per_um_image3
-
-    A_projected_um_to_image3[:2, 2] = visual_stim_center_px_image3
-
-    # --------------------------------------------------------
-    # Image 3 -> cone image
-    # --------------------------------------------------------
-    #
-    # tform_2_to_3:
-    #
-    #     cone/microscope pixels
-    #                ->
-    #          Image 3 pixels
-    #
-    # so invert it.
-
-    A_image3_to_cone = np.linalg.inv(tform_2_to_3)
-
-    # --------------------------------------------------------
-    # projected µm -> cone image pixels
-    # --------------------------------------------------------
-
-    A_projected_um_to_cone = A_image3_to_cone @ A_projected_um_to_image3
-
-    return A_projected_um_to_cone
+    return np.linalg.inv(geometry.A_image1_to_projected_um)
 
 
 # %% ------------------------------------------------------------
@@ -729,9 +644,7 @@ for recording in RECORDINGS:
     # Load alignment transformation
     # --------------------------------------------------------
 
-    alignment_transforms[recording_id] = load_projected_um_to_cone_transform(
-        recording["ALIGNMENT_CACHE_PATH"]
-    )
+    alignment_transforms[recording_id] = load_projected_um_to_cone_transform(recording)
 # %% ------------------------------------------------------------
 # FIGURE 1
 #
@@ -789,6 +702,7 @@ for ax, (_, row) in zip(
     ax.imshow(
         crop_display,
         cmap="gray",
+        # ORIENTATION [DISPLAY only] standard image layout (row 0 at top); no rotation.
         origin="upper",
         extent=[
             -half_crop,
@@ -915,6 +829,7 @@ for ax, recording in zip(
     ax.imshow(
         normalise_for_display(cone_image),
         cmap="gray",
+        # ORIENTATION [DISPLAY only] standard image layout (row 0 at top); no rotation.
         origin="upper",
     )
 

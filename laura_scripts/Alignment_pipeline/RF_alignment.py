@@ -1,3 +1,16 @@
+# v2 ALIGNMENT (2026-11-18) — differences from the original, legacy/Alignment_pipeline/RF_alignment.py:
+#   * Needs a v2 noise_data file (noise_data_v2.nc from
+#     combined_analysis/convert_noise_data_v2.py, or a new run of RF_pipeline_v2.py).
+#     Its RF maps are in STIMULUS coordinates, like kernel.npy and positions.
+#   * Orientation is ONE transform, not a data flip: A_raw_rf_to_projected_um =
+#     STIMULUS_TO_PROJECTION, i.e. (x, y) -> (-y, -x) (OpenGL up-down flip, then
+#     projector 90° anticlockwise; confirmed with the L-shaped noise). The old
+#     left-right flip came from an L test plotted with xarray, which draws y UP.
+#   * The single-cell marker from dataset["positions"] goes through the same transform.
+#   * Stimulus raw/displayed size is set once per recording (top of CELL 1) and the
+#     displayed-stimulus centre is recomputed from the clicked edge with it. The old
+#     script hard-coded 800 x 1000 for the centre (14_08_2026 was 156 µm off).
+#   * Shared rules live in alignment_geometry.py. Clicks/cache/scale are unchanged.
 # %% ============================================================
 # CELL 1 — LOAD EVERYTHING ONCE + DEFINE HELPER FUNCTIONS
 # ============================================================
@@ -20,6 +33,16 @@ from matplotlib.transforms import Affine2D
 from matplotlib.colors import Normalize
 from skimage.transform import resize, rotate, estimate_transform
 
+from laura_scripts.Alignment_pipeline.alignment_geometry import (
+    dataset_um_per_px,
+    displayed_box_corners_px,
+    displayed_stimulus_size_px,
+    raw_stimulus_size_px,
+    load_alignment_geometry,
+    require_v2_rf_frame,
+    stimulus_centre_from_clicked_edge,
+)
+
 
 # ------------------------------------------------------------
 # RECORDING-SPECIFIC PATHS — edit these once per recording
@@ -28,7 +51,7 @@ recording_name = "zebrafish_15_05_2026_phase_00"
 
 # RF dataset
 path_to_data = Path(
-    r"F:\Laura\zebrafish_15_05_2026\Phase_00\noise_analysis\noise_data.nc"
+    r"F:\Laura\zebrafish_15_05_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
 
 # Image 1: cone mosaic, same microscope coordinate space as Image 2
@@ -60,8 +83,12 @@ video_end_prop = 1.0
 
 # Alignment cache: stores electrode clicks, transform, and stimulus-edge clicks.
 alignment_cache_path = Path(
-    rf"F:\Laura\zebrafish_15_05_2026\alignment_videos\{recording_name}_alignment_cache.npz"
+    rf"F:\Laura\zebrafish_15_05_2026\alignment_videos\{recording_name}_alignment_cache_v2.npz"
 )
+
+# v2: show Image 3 with the displayed-stimulus box implied by the displayed size.
+# The box must sit exactly on the lit stimulus; if not, the displayed size is wrong.
+show_displayed_size_check = True
 
 # Click options
 redo_electrode_alignment = False
@@ -71,6 +98,17 @@ redo_stimulus_clicks = False
 #   "left"  = click top-left, then bottom-left
 #   "right" = click top-right, then bottom-right
 stimulus_edge_to_click = "left"
+
+# v2: per-recording stimulus geometry. Nothing is hard-coded:
+#   * dataset pixel size  -> noise_pixel_size in the channels' noise_params.json
+#                            (checked against the RF file's x grid)
+#   * raw stimulus size   -> x_len / y_len in noise_params.json
+#   * displayed size      -> read from this recording's v2 alignment cache.
+#     It is a projector setting, so it cannot be calculated. Leave None; set it
+#     ONLY for a NEW recording (stimulus px, e.g. 800 x 800 or 800 x 1000) and
+#     check it against the lit area in Image 3. It is then saved in the cache.
+displayed_stim_width_px = None
+displayed_stim_height_px = None
 
 n_electrode_points = 12
 transform_type = "affine"
@@ -638,42 +676,6 @@ def robust_vmax(values, percentile=99.5, fallback=1.0):
     return vmax
 
 
-def flip_rf_left_right(da: xr.DataArray) -> xr.DataArray:
-    """
-    Mirror an RF left <-> right about its central vertical line.
-
-    This flips the DATA along the x dimension while leaving the x-coordinate
-    values themselves unchanged.
-
-    In image terminology this is a horizontal flip.
-
-        left  <---->  right
-
-    This is deliberately different from:
-        da.isel(x=slice(None, None, -1))
-
-    because that would also reverse the x-coordinate labels.
-    Here we want the RF contents to move to the opposite x positions while
-    retaining the existing physical coordinate system.
-    """
-    if "x" not in da.dims:
-        raise ValueError("Input DataArray must include an 'x' dimension.")
-
-    x_axis = da.get_axis_num("x")
-
-    flipped_values = np.flip(
-        da.values,
-        axis=x_axis,
-    )
-
-    flipped = da.copy(
-        data=flipped_values,
-        deep=True,
-    )
-
-    return flipped
-
-
 def label_axes_as_raw_rf_um(
     ax,
     A_raw_rf_to_image3,
@@ -795,6 +797,15 @@ print("LOADING DATA")
 print("------------------------------------------------------------")
 
 dataset = xr.load_dataset(path_to_data)
+require_v2_rf_frame(dataset, str(path_to_data))
+
+# v2: read, not typed (see the settings at the top of CELL 1).
+dataset_assumed_um_per_px = dataset_um_per_px(path_to_data.parent, dataset)
+raw_stim_width_px, raw_stim_height_px = raw_stimulus_size_px(path_to_data.parent)
+print(
+    f"Stimulus pixel size (noise_params.json): {dataset_assumed_um_per_px} µm/px; "
+    f"raw stimulus (noise_params.json): {raw_stim_width_px} x {raw_stim_height_px} px"
+)
 cone_image = iio.imread(image_1_cones_path)
 MEA_electrode_retina = iio.imread(image_2_electrodes_retina_path)
 visual_stim_image = iio.imread(image_3_visual_stim_path)
@@ -840,6 +851,13 @@ if show_image_load_overview:
 # ------------------------------------------------------------
 cache = load_alignment_cache(alignment_cache_path)
 
+# v2: displayed stimulus size from this recording's cache (or the settings above
+# for a new recording).
+displayed_stim_width_px, displayed_stim_height_px = displayed_stimulus_size_px(
+    cache, displayed_stim_width_px, displayed_stim_height_px
+)
+print(f"Displayed stimulus: {displayed_stim_width_px} x {displayed_stim_height_px} stimulus px")
+
 need_electrode_alignment = (
     redo_electrode_alignment
     or "tform_2_to_3_params" not in cache
@@ -883,11 +901,11 @@ print(f"Image 3 scale: {px_per_um_image3:.4f} px/µm")
 # ------------------------------------------------------------
 # LOAD OR CLICK DISPLAYED STIMULUS EDGE
 # ------------------------------------------------------------
-# These are the hard assumptions you requested:
-raw_stim_width_px_load = 1000
-raw_stim_height_px_load = 1000
-displayed_stim_width_px_load = 800
-displayed_stim_height_px_load = 1000
+# v2: use the per-recording geometry set at the top of CELL 1.
+raw_stim_width_px_load = raw_stim_width_px
+raw_stim_height_px_load = raw_stim_height_px
+displayed_stim_width_px_load = displayed_stim_width_px
+displayed_stim_height_px_load = displayed_stim_height_px
 
 stimulus_edge_to_click = str(stimulus_edge_to_click).lower()
 
@@ -952,7 +970,51 @@ save_alignment_cache(
     stim_edge_bottom_px=stim_edge_bottom_px,
     visual_stim_center_px_image3=visual_stim_center_px_image3,
     stimulus_edge_side=stimulus_edge_side,
+    # v2: per-recording geometry, read by alignment_geometry.load_alignment_geometry
+    raw_stim_width_px=raw_stim_width_px,
+    raw_stim_height_px=raw_stim_height_px,
+    displayed_stim_width_px=displayed_stim_width_px,
+    displayed_stim_height_px=displayed_stim_height_px,
+    dataset_assumed_um_per_px=dataset_assumed_um_per_px,
 )
+
+# v2: always recompute the stimulus centre from the clicked edge and the
+# displayed width/height set above, instead of trusting the cached centre (old
+# caches were made with a hard-coded 800 x 1000). The cache file is NOT changed,
+# so the old script still reads its original value.
+cached_visual_stim_center_px_image3 = visual_stim_center_px_image3
+visual_stim_center_px_image3 = stimulus_centre_from_clicked_edge(
+    stim_edge_top_px,
+    stim_edge_bottom_px,
+    stimulus_edge_side,
+    displayed_stim_width_px,
+    displayed_stim_height_px,
+)
+centre_shift_px = visual_stim_center_px_image3 - cached_visual_stim_center_px_image3
+print(
+    "v2 stimulus centre from clicked edge "
+    f"({displayed_stim_width_px} x {displayed_stim_height_px} displayed): "
+    f"x = {visual_stim_center_px_image3[0]:.2f}, y = {visual_stim_center_px_image3[1]:.2f} "
+    f"(cached: {cached_visual_stim_center_px_image3[0]:.2f}, "
+    f"{cached_visual_stim_center_px_image3[1]:.2f}; shift "
+    f"{np.linalg.norm(centre_shift_px):.1f} px = "
+    f"{np.linalg.norm(centre_shift_px) * um_per_px_image3:.0f} µm)"
+)
+
+if show_displayed_size_check:
+    box = displayed_box_corners_px(
+        stim_edge_top_px, stim_edge_bottom_px, stimulus_edge_side,
+        displayed_stim_width_px, displayed_stim_height_px,
+    )
+    fig, ax = plt.subplots(figsize=(7, 7))
+    ax.imshow(visual_stim_rgb)
+    ax.plot(box[:, 0], box[:, 1], color="red", lw=1.5,
+            label=f"displayed {displayed_stim_width_px} x {displayed_stim_height_px}")
+    ax.plot(*visual_stim_center_px_image3, "r+", ms=14, mew=2, label="stimulus centre")
+    ax.set_title("CHECK: the red box should sit exactly on the lit stimulus.\n"
+                 "If not, the displayed stimulus size for this recording is wrong.")
+    ax.legend(loc="lower right", fontsize=8)
+    plt.show()
 
 # Matplotlib transform for cone image onto Image 3
 mpl_tform_1_to_3 = Affine2D(tform_2_to_3_params)
@@ -1048,8 +1110,8 @@ population_tilt_threshold = 0.75
 # ------------------------------------------------------------
 # RF spatial orientation
 # ------------------------------------------------------------
-# RF data are ALWAYS mirrored left <-> right before plotting.
-# There is intentionally no orientation option here.
+# v2: orientation is the fixed STIMULUS_TO_PROJECTION transform
+# (alignment_geometry.py). There is intentionally no orientation option.
 
 # ------------------------------------------------------------
 # RF normalisation and combination
@@ -1083,13 +1145,7 @@ normalise_final_projection_to_0_1 = True
 # ------------------------------------------------------------
 # Stimulus geometry assumptions
 # ------------------------------------------------------------
-# Raw HDF5 stimulus file: 800 × 800 pixels.
-raw_stim_width_px = 1000
-raw_stim_height_px = 1000
-
-# Displayed final projected stimulus: 800 high × 800 wide.
-displayed_stim_width_px = 800
-displayed_stim_height_px = 1000
+# v2: raw/displayed stimulus sizes are now set once at the top of CELL 1.
 
 # Set True to mask RF pixels outside the displayed 800×800 stimulus.
 clip_rf_to_displayed_stimulus = True
@@ -1098,12 +1154,9 @@ clip_rf_to_displayed_stimulus = True
 draw_raw_stimulus_boundary = False  # yellow square = full raw 800×800
 draw_displayed_stimulus_boundary = False  # magenta rectangle = displayed 800×800
 
-# Raw RF/stimulus coordinates are used directly in projected-stimulus coordinates.
-# In other words, raw -> projected is ALWAYS the identity transform.
+# v2: raw RF (stimulus) -> projected is ALWAYS STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x).
 
-# This should be the pixel size used when the RF dataset x/y coordinates
-# were generated by the RF pipeline.
-dataset_assumed_um_per_px = 2.5
+# v2: dataset_assumed_um_per_px is set once per recording at the top of CELL 1.
 
 
 # ------------------------------------------------------------
@@ -1188,66 +1241,30 @@ elif rf_dataset_to_plot == "cm_most_important":
 
 
 # ------------------------------------------------------------
-# Calculate corrected stimulus scale from clicked vertical edge
+# v2: ALL alignment geometry from the shared loader (alignment_geometry.py), the
+# same function every other v2 script uses. The sizes are this recording's
+# settings from the top of CELL 1.
 # ------------------------------------------------------------
+geometry = load_alignment_geometry(
+    alignment_cache_path,
+    dataset_assumed_um_per_px=dataset_assumed_um_per_px,
+    displayed_stim_width_px=displayed_stim_width_px,
+    displayed_stim_height_px=displayed_stim_height_px,
+)
+corrected_stim_um_per_px = geometry.corrected_stim_um_per_px
+rf_scale_factor = geometry.rf_scale_factor
+A_projected_um_to_image3 = geometry.A_projected_um_to_image3
+# ORIENTATION [RF ROTATION] All RF maps/markers in this script are placed with this transform:
+#   stimulus (x, y) -> projected (-y, -x). The RF data themselves are never flipped.
+A_raw_rf_to_projected_um = geometry.A_raw_rf_to_projected_um
+
+# Convenience values used by later plots (derived from the same clicks).
 clicked_edge_vec_px = stim_edge_bottom_px - stim_edge_top_px
 clicked_edge_length_px = np.linalg.norm(clicked_edge_vec_px)
-
-if clicked_edge_length_px == 0:
-    raise ValueError("stim_edge_top_px and stim_edge_bottom_px are identical.")
 clicked_edge_length_um = clicked_edge_length_px * um_per_px_image3
-
-# Clicked edge is the longer displayed edge, assumed to be 800 stimulus pixels.
-corrected_stim_um_per_px = clicked_edge_length_um / displayed_stim_height_px
-rf_scale_factor = corrected_stim_um_per_px / dataset_assumed_um_per_px
-
-print("------------------------------------------------------------")
-print("SCALE CHECK")
-print("------------------------------------------------------------")
-print(
-    f"Clicked {stimulus_edge_side.upper()} vertical edge length: {clicked_edge_length_px:.2f} Image 3 px"
-)
-print(
-    f"Clicked {stimulus_edge_side.upper()} vertical edge length: {clicked_edge_length_um:.2f} µm"
-)
-print(f"Displayed stimulus height: {displayed_stim_height_px} stimulus px")
-print(f"Corrected stimulus pixel size: {corrected_stim_um_per_px:.4f} µm/px")
-print(f"RF dataset assumed pixel size: {dataset_assumed_um_per_px:.4f} µm/px")
-print(f"RF coordinate scale factor: {rf_scale_factor:.4f}")
-
-
-# ------------------------------------------------------------
-# Build projected-stimulus µm -> Image 3 pixel transform
-# ------------------------------------------------------------
-# Projected coordinate system:
-#   +x = right across displayed stimulus
-#   +y = down along clicked vertical edge
-#   origin = displayed stimulus centre
-
 stim_down_unit_px = clicked_edge_vec_px / clicked_edge_length_px
-stim_right_unit_px = np.array(
-    [stim_down_unit_px[1], -stim_down_unit_px[0]],
-    dtype=float,
-)
-
-M_projected_um_to_image3 = np.column_stack(
-    [
-        stim_right_unit_px * px_per_um_image3,
-        stim_down_unit_px * px_per_um_image3,
-    ]
-)
-
-A_projected_um_to_image3 = np.eye(3, dtype=float)
-A_projected_um_to_image3[:2, :2] = M_projected_um_to_image3
-A_projected_um_to_image3[:2, 2] = visual_stim_center_px_image3
-
-
-# ------------------------------------------------------------
-# Raw RF/stimulus -> projected-stimulus transform
-# ------------------------------------------------------------
-# Fixed behaviour: raw RF/stimulus coordinates are already interpreted
-# in the projected-stimulus coordinate system, so this transform is identity.
-A_raw_rf_to_projected_um = np.eye(3, dtype=float)
+stim_right_unit_px = np.array([stim_down_unit_px[1], -stim_down_unit_px[0]], dtype=float)
+M_projected_um_to_image3 = A_projected_um_to_image3[:2, :2]
 
 A_raw_rf_to_image3 = A_projected_um_to_image3 @ A_raw_rf_to_projected_um
 mpl_rf_transform = Affine2D(A_raw_rf_to_image3)
@@ -1264,7 +1281,7 @@ print(
     f"x = {visual_stim_center_px_image3[0]:.2f}, "
     f"y = {visual_stim_center_px_image3[1]:.2f}"
 )
-print("Raw -> projected transform: identity")
+print("Raw (stimulus) -> projected transform: (x, y) -> (-y, -x)")
 print(f"Stimulus edge used for clicks: {stimulus_edge_side.upper()}")
 
 # ------------------------------------------------------------
@@ -1280,11 +1297,7 @@ print("Variable:", rf_variable_name)
 print("Original dims:", combined.dims)
 print("Original shape:", combined.shape)
 
-print(
-    "Applying fixed left-right RF mirror "
-    "(horizontal flip about central vertical line)."
-)
-combined = flip_rf_left_right(combined)
+print("v2: RF maps in stimulus coordinates; placed via STIMULUS_TO_PROJECTION.")
 # ------------------------------------------------------------
 # Get quality and tilt values, if present
 # ------------------------------------------------------------
@@ -1880,16 +1893,6 @@ if plot_mode == "single_cell":
         ).item()
     )
 
-    # RF data are always mirrored left <-> right, so mirror the stored
-    # most-important-pixel x index in the same way.
-    original_peak_x_index = peak_x_index
-    peak_x_index = dataset.sizes["x"] - 1 - peak_x_index
-
-    print(
-        "Mirroring stored RF peak x index: "
-        f"{original_peak_x_index} -> {peak_x_index}"
-    )
-
     if not (0 <= peak_x_index < dataset.sizes["x"]):
         raise IndexError(
             f"Stored x index {peak_x_index} is outside the dataset x range "
@@ -1902,8 +1905,9 @@ if plot_mode == "single_cell":
             f"0 to {dataset.sizes['y'] - 1}."
         )
 
+    # v2: positions and maps share the stimulus frame; A_raw_rf_to_projected_um
+    # (applied below) places the peak in the projected frame.
     peak_raw_x_dataset_units = float(dataset["x"].isel(x=peak_x_index).item())
-
     peak_raw_y_dataset_units = float(dataset["y"].isel(y=peak_y_index).item())
 
     # Apply the same scale correction used for the RF image coordinates.
@@ -2061,10 +2065,10 @@ print("rf_vmax:", rf_vmax)
 from matplotlib.ticker import MultipleLocator
 
 # Image 3 pixel coordinates -> projected-stimulus µm
-A_image3_to_projected_um = np.linalg.inv(A_projected_um_to_image3)
+A_image3_to_projected_um = geometry.A_image3_to_projected_um
 
 # Image 1/cone coordinates -> Image 3 -> projected-stimulus µm
-A_image1_to_projected_um = A_image3_to_projected_um @ tform_2_to_3_params
+A_image1_to_projected_um = geometry.A_image1_to_projected_um
 
 # RF raw coordinates -> projected-stimulus µm
 mpl_image3_to_projected_um = Affine2D(A_image3_to_projected_um)
@@ -2337,7 +2341,7 @@ ax.tick_params(axis="both", labelsize=9)
 # ------------------------------------------------------------
 # Title, legend, colourbar
 # ------------------------------------------------------------
-xy_label = "RF mirrored left-right"
+xy_label = "v2: stimulus -> projection (x, y) -> (-y, -x)"
 norm_label = (
     "per-cell normalised" if normalise_each_cell else "no per-cell normalisation"
 )
@@ -2644,11 +2648,7 @@ for rank_i, (
 
     rf_cell = rf_all_top.sel(cell_index=cell_id)
 
-    # --------------------------------------------------------
-    # SAME fixed left-right RF mirror as main plot
-    # --------------------------------------------------------
-
-    rf_cell = flip_rf_left_right(rf_cell)
+    # v2: no data flip; orientation comes from A_raw_rf_to_projected_um.
 
     # --------------------------------------------------------
     # Per-cell normalisation
@@ -3133,11 +3133,7 @@ for channel in channels_to_plot:
         cell_index=cell_id_to_plot,
     )
 
-    # --------------------------------------------------------
-    # SAME LEFT-RIGHT RF FLIP AS MAIN SCRIPT
-    # --------------------------------------------------------
-
-    rf_cell = flip_rf_left_right(rf_cell)
+    # v2: no data flip; orientation comes from A_raw_rf_to_projected_um.
 
     # --------------------------------------------------------
     # PER-CELL NORMALISATION

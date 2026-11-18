@@ -1,3 +1,5 @@
+# moving_edge_analysis.py — v2 version for v2 data (2026-11-18). The original (v1) is in laura_scripts/legacy/OSI/moving_edge_analysis.py.
+#   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -1134,6 +1136,7 @@ def _draw_small_raster(
 
     ax.set_xlim(0, direction_duration_s)
     ax.set_ylim(-0.5, expected_repeats - 0.5)
+    # ORIENTATION [NOT RF] raster only: trial 1 at the top.
     ax.invert_yaxis()
 
     ticks = _compact_time_ticks(direction_duration_s)
@@ -1765,7 +1768,7 @@ class MovingBarSession:
 
 # %% 1. Load the large NetCDF dataset once
 NOISE_DATA_PATH = Path(
-    r"F:\Laura\zebrafish_14_08_2026\Phase_00\noise_analysis\noise_data.nc"
+    r"F:\Laura\zebrafish_14_08_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
 
 try:

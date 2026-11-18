@@ -21,6 +21,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import xarray as xr
 
+import numpy as np
+
+from laura_scripts.Alignment_pipeline.alignment_geometry import (
+    dataset_um_per_px,
+    displayed_stimulus_size_px,
+)
 from laura_scripts.Alignment_pipeline.cone_rf_connectivity_functions import (
     build_alignment_geometry_matching_rf_alignment,
     compute_cone_connectivity_weights,
@@ -45,7 +51,7 @@ from laura_scripts.Alignment_pipeline.cone_rf_connectivity_functions import (
 recording_name = "zebrafish_15_05_2026_phase_00"
 
 path_to_data = Path(
-    r"F:\Laura\zebrafish_15_05_2026\Phase_00\noise_analysis\noise_data.nc"
+    r"F:\Laura\zebrafish_15_05_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
 
 # Exact Image 1 cone image used in the alignment pipeline.
@@ -55,7 +61,7 @@ image_1_cones_path = Path(
 
 # .npz cache produced by the alignment pipeline.
 alignment_cache_path = Path(
-    rf"F:\Laura\zebrafish_15_05_2026\alignment_videos\{recording_name}_alignment_cache.npz"
+    rf"F:\Laura\zebrafish_15_05_2026\alignment_videos\{recording_name}_alignment_cache_v2.npz"
 )
 
 output_dir = path_to_data.parent / "single_cell_cone_connectivity"
@@ -77,22 +83,14 @@ normalise_each_cell = True
 
 
 # -----------------------------------------------------------------------------
-# Alignment / stimulus geometry — MUST match the RF alignment script
+# Alignment / stimulus geometry
 # -----------------------------------------------------------------------------
-raw_stim_width_px = 1000
-raw_stim_height_px = 1000
-
-displayed_stim_width_px = 800
-displayed_stim_height_px = 1000
-
+# v2: nothing hard-coded. The stimulus pixel size comes from noise_params.json and
+# the displayed stimulus size from this recording's v2 alignment cache (CELL 2).
 clip_rf_to_displayed_stimulus = True
 
-# Pixel size assumed when the RF dataset x/y coordinates were generated.
-dataset_assumed_um_per_px = 2.5
-
-# IMPORTANT:
-# Raw RF -> projected stimulus is identity.
-# RF orientation is handled by the fixed left-right data mirror in the helper.
+# ORIENTATION: RFs are placed with the single STIMULUS_TO_PROJECTION transform,
+# (x, y) -> (-y, -x), inside the helper functions. No data flips.
 
 
 # -----------------------------------------------------------------------------
@@ -175,10 +173,16 @@ show_figures = True
 dataset = xr.load_dataset(path_to_data)
 cone_image = load_image(image_1_cones_path)
 
+# v2: read, not typed.
+dataset_assumed_um_per_px = dataset_um_per_px(path_to_data.parent, dataset)
+displayed_stim_width_px, displayed_stim_height_px = displayed_stimulus_size_px(
+    dict(np.load(alignment_cache_path, allow_pickle=True))
+)
 geometry = build_alignment_geometry_matching_rf_alignment(
     alignment_cache_path,
     displayed_stim_height_px=displayed_stim_height_px,
     dataset_assumed_um_per_px=dataset_assumed_um_per_px,
+    displayed_stim_width_px=displayed_stim_width_px,
 )
 
 print("------------------------------------------------------------")

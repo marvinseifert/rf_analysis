@@ -1,3 +1,11 @@
+# build_fff_dataset.py — v2 version, using the v2 alignment (2026-11-18).
+# The original (v1) is in laura_scripts/legacy/Seaborn/fff_feature_pipeline/build_fff_dataset.py;
+# its outputs (fff_features.csv / fff_data.nc) are left unchanged.
+#   * cone regularity uses the v2 extract_cone_regularity.py (RF maps in stimulus
+#     coordinates + one STIMULUS_TO_PROJECTION transform + recomputed centre)
+#   * reads noise_analysis/noise_data_v2.nc (convert_noise_data_v2.py)
+#   * writes fff_features_v2.csv / fff_data_v2.nc. The first run starts from the
+#     existing fff_features.csv / fff_data.nc, so the other feature blocks are kept.
 # %% Build / update one per-cell FFF + cone-mosaic feature dataset
 #
 # This version can UPDATE an existing fff_data.nc / fff_features.csv
@@ -34,7 +42,7 @@ RECORDING_ROOT = Path(r"F:\Laura\zebrafish_14_08_2026\Phase_00")
 
 OVERVIEW_PATH = RECORDING_ROOT / "overview"
 
-NOISE_DATA_PATH = RECORDING_ROOT / "noise_analysis" / "noise_data.nc"
+NOISE_DATA_PATH = RECORDING_ROOT / "noise_analysis" / "noise_data_v2.nc"
 
 OUTPUT_DIR = RECORDING_ROOT / "fff_analysis"
 
@@ -172,8 +180,8 @@ MOVING_EDGE_CONDITIONS = (
 #
 # 1. Find RF centre from one selected RF channel.
 #
-# 2. Use the SAME RF left-right flip and alignment logic
-#    as the RF/cone alignment script.
+# 2. Use the v2 alignment (stimulus coords -> projection via one transform,
+#    alignment_geometry.py), as the v2 RF/cone alignment script.
 #
 # 3. Convert RF centre into the aligned cone-image coordinate system.
 #
@@ -216,7 +224,7 @@ CONE_IMAGE_PATH = Path(
 ALIGNMENT_CACHE_PATH = Path(
     r"F:\Laura\zebrafish_14_08_2026"
     r"\alignment_videos"
-    r"\zebrafish_14_08_2026_phase_00_alignment_cache.npz"
+    r"\zebrafish_14_08_2026_phase_00_alignment_cache_v2.npz"
 )
 
 
@@ -252,9 +260,8 @@ CONE_REGULARITY_PARAMETERS = dict(
     # RF coordinate scale
     # ---------------------------------------------------------
     #
-    # MUST match the alignment script.
-    dataset_assumed_um_per_px=2.0,
-    displayed_stim_height_px=800,
+    # v2: not set here. Stimulus pixel size comes from noise_params.json and the
+    # displayed stimulus size from the recording's v2 alignment cache.
     # ---------------------------------------------------------
     # Autocorrelation preprocessing
     # ---------------------------------------------------------
@@ -479,9 +486,17 @@ if __name__ == "__main__":
         exist_ok=True,
     )
 
-    CSV_PATH = OUTPUT_DIR / "fff_features.csv"
+    CSV_PATH = OUTPUT_DIR / "fff_features_v2.csv"
 
-    NC_PATH = OUTPUT_DIR / "fff_data.nc"
+    NC_PATH = OUTPUT_DIR / "fff_data_v2.nc"
+
+    # First v2 run: start from the existing v1 tables so the other feature
+    # blocks (csteps, SCF, chirp, ...) are kept.
+    if CSV_PATH.exists() or NC_PATH.exists():
+        EXISTING_CSV_PATH, EXISTING_NC_PATH = CSV_PATH, NC_PATH
+    else:
+        EXISTING_CSV_PATH = OUTPUT_DIR / "fff_features.csv"
+        EXISTING_NC_PATH = OUTPUT_DIR / "fff_data.nc"
 
     # ---------------------------------------------------------
     # Master list of every cell in recording
@@ -517,8 +532,8 @@ if __name__ == "__main__":
 
     fff_df = _load_existing_feature_table(
         cells=cells_df,
-        csv_path=CSV_PATH,
-        nc_path=NC_PATH,
+        csv_path=EXISTING_CSV_PATH,
+        nc_path=EXISTING_NC_PATH,
     )
 
     # =============================================================================

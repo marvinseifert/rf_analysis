@@ -10,9 +10,10 @@ All final positions are represented in the alignment pipeline's
     y: downwards, in µm
     origin: centre of the displayed visual stimulus
 
-The RF coordinate scale and orientation follow the current RF alignment script.
-The cone image is warped from microscope pixels directly into projected-stimulus
-µm coordinates before blue-cone detection and mosaic interpolation.
+The RF coordinate scale follows the RF alignment script. v2: needs a v2
+noise_data file (RF maps in STIMULUS coordinates, like kernel.npy and positions);
+orientation is the single STIMULUS_TO_PROJECTION transform, (x, y) -> (-y, -x),
+from alignment_geometry.py. No data is flipped.
 """
 
 from __future__ import annotations
@@ -35,6 +36,12 @@ from scipy.ndimage import map_coordinates
 from scipy.spatial.distance import cdist
 from skimage import exposure, filters, measure, morphology
 
+from laura_scripts.Alignment_pipeline.alignment_geometry import (
+    AlignmentGeometry,
+    load_alignment_geometry,
+    require_v2_rf_frame,
+)
+
 
 CONE_TYPES = ("UV", "Blue", "Green", "Red")
 CONE_COLOURS = {
@@ -43,23 +50,6 @@ CONE_COLOURS = {
     "Green": "limegreen",
     "Red": "red",
 }
-
-
-@dataclass
-class AlignmentGeometry:
-    """Transforms and scale factors copied from the final alignment logic."""
-
-    tform_image1_to_image3: np.ndarray
-    um_per_px_image3: float
-    corrected_stim_um_per_px: float
-    rf_scale_factor: float
-    A_projected_um_to_image3: np.ndarray
-    A_image3_to_projected_um: np.ndarray
-    A_image1_to_projected_um: np.ndarray
-    A_raw_rf_to_projected_um: np.ndarray
-    visual_stim_center_px_image3: np.ndarray
-    stim_top_left_px: np.ndarray
-    stim_bottom_left_px: np.ndarray
 
 
 @dataclass
@@ -352,171 +342,24 @@ def _select_optional_scalar(
 # These functions intentionally reproduce the CURRENT RF alignment script:
 #   - corrected scale from cached clicked stimulus edge
 #   - projected x=right, y=down, origin=displayed stimulus centre
-#   - raw RF -> projected µm = identity
-#   - RF data always mirrored left <-> right
+#   - RF maps in stimulus coordinates (v2 noise_data)
+#   - v2: raw RF -> projected = STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x); no data flips
 #
-
-
-def flip_rf_left_right(da: xr.DataArray) -> xr.DataArray:
-    """
-    Mirror RF DATA left <-> right while leaving the x-coordinate values unchanged.
-
-    This is the same fixed horizontal RF flip used by the RF alignment script.
-    """
-    if "x" not in da.dims:
-        raise ValueError("Input DataArray must include an 'x' dimension.")
-
-    x_axis = da.get_axis_num("x")
-    flipped_values = np.flip(da.values, axis=x_axis)
-    return da.copy(data=flipped_values, deep=True)
 
 
 def build_alignment_geometry_matching_rf_alignment(
     alignment_cache_path: str | Path,
     *,
-    displayed_stim_height_px: int,
-    dataset_assumed_um_per_px: float,
+    dataset_assumed_um_per_px: float | None = None,
+    displayed_stim_width_px: int | None = None,
+    displayed_stim_height_px: int | None = None,
 ) -> AlignmentGeometry:
-    """
-    Recreate the CURRENT RF alignment script's geometry from its saved cache.
-
-    Important: this deliberately does NOT use the older connectivity-helper
-    orientation logic. The RF alignment script now uses:
-
-        A_raw_rf_to_projected_um = identity
-
-    and stores the clicked stimulus edge as stim_edge_top_px /
-    stim_edge_bottom_px, irrespective of whether LEFT or RIGHT was clicked.
-    """
-    cache_path = Path(alignment_cache_path)
-    if not cache_path.exists():
-        raise FileNotFoundError(
-            f"Alignment cache not found: {cache_path}\n"
-            "Run the RF alignment script first so its .npz cache exists."
-        )
-
-    loaded = np.load(cache_path, allow_pickle=True)
-    required = {
-        "tform_2_to_3_params",
-        "um_per_px_image3",
-        "stim_edge_top_px",
-        "stim_edge_bottom_px",
-        "visual_stim_center_px_image3",
-        "stimulus_edge_side",
-    }
-    missing = sorted(required.difference(loaded.files))
-    if missing:
-        raise KeyError(
-            "Alignment cache is not in the format produced by the current RF "
-            f"alignment script. Missing: {missing}"
-        )
-
-    tform_2_to_3_params = np.asarray(loaded["tform_2_to_3_params"], dtype=float)
-    um_per_px_image3 = float(loaded["um_per_px_image3"])
-    px_per_um_image3 = 1.0 / um_per_px_image3
-
-    stim_edge_top_px = np.asarray(loaded["stim_edge_top_px"], dtype=float)
-    stim_edge_bottom_px = np.asarray(loaded["stim_edge_bottom_px"], dtype=float)
-    visual_stim_center_px_image3 = np.asarray(
-        loaded["visual_stim_center_px_image3"], dtype=float
-    )
-    stimulus_edge_side = str(np.asarray(loaded["stimulus_edge_side"]).item()).lower()
-
-    if stimulus_edge_side not in {"left", "right"}:
-        raise ValueError(
-            "Cached stimulus_edge_side must be 'left' or 'right'; "
-            f"got {stimulus_edge_side!r}."
-        )
-
-    # ------------------------------------------------------------
-    # EXACT RF ALIGNMENT SCALE CALCULATION
-    # ------------------------------------------------------------
-    clicked_edge_vec_px = stim_edge_bottom_px - stim_edge_top_px
-    clicked_edge_length_px = float(np.linalg.norm(clicked_edge_vec_px))
-
-    if clicked_edge_length_px == 0:
-        raise ValueError("stim_edge_top_px and stim_edge_bottom_px are identical.")
-
-    clicked_edge_length_um = clicked_edge_length_px * um_per_px_image3
-    corrected_stim_um_per_px = clicked_edge_length_um / displayed_stim_height_px
-    rf_scale_factor = corrected_stim_um_per_px / dataset_assumed_um_per_px
-
-    print("------------------------------------------------------------")
-    print("SCALE CHECK — MATCHING RF ALIGNMENT SCRIPT")
-    print("------------------------------------------------------------")
-    print(
-        f"Clicked {stimulus_edge_side.upper()} vertical edge length: "
-        f"{clicked_edge_length_px:.2f} Image 3 px"
-    )
-    print(
-        f"Clicked {stimulus_edge_side.upper()} vertical edge length: "
-        f"{clicked_edge_length_um:.2f} µm"
-    )
-    print(f"Displayed stimulus height: {displayed_stim_height_px} stimulus px")
-    print(f"Corrected stimulus pixel size: {corrected_stim_um_per_px:.4f} µm/px")
-    print(f"RF dataset assumed pixel size: {dataset_assumed_um_per_px:.4f} µm/px")
-    print(f"RF coordinate scale factor: {rf_scale_factor:.4f}")
-
-    # ------------------------------------------------------------
-    # EXACT PROJECTED-STIMULUS COORDINATE SYSTEM
-    # ------------------------------------------------------------
-    # +x = right across displayed stimulus
-    # +y = down along clicked vertical edge
-    # origin = displayed stimulus centre
-    stim_down_unit_px = clicked_edge_vec_px / clicked_edge_length_px
-    stim_right_unit_px = np.array(
-        [stim_down_unit_px[1], -stim_down_unit_px[0]],
-        dtype=float,
-    )
-
-    M_projected_um_to_image3 = np.column_stack(
-        [
-            stim_right_unit_px * px_per_um_image3,
-            stim_down_unit_px * px_per_um_image3,
-        ]
-    )
-
-    A_projected_um_to_image3 = np.eye(3, dtype=float)
-    A_projected_um_to_image3[:2, :2] = M_projected_um_to_image3
-    A_projected_um_to_image3[:2, 2] = visual_stim_center_px_image3
-
-    A_image3_to_projected_um = np.linalg.inv(A_projected_um_to_image3)
-    A_image1_to_projected_um = A_image3_to_projected_um @ tform_2_to_3_params
-
-    # CURRENT RF alignment behaviour: no extra raw-stimulus rotation/flip matrix.
-    A_raw_rf_to_projected_um = np.eye(3, dtype=float)
-
-    origin_check = A_projected_um_to_image3 @ np.array([0.0, 0.0, 1.0])
-
-    print("------------------------------------------------------------")
-    print("TRANSFORM CHECK — MATCHING RF ALIGNMENT SCRIPT")
-    print("------------------------------------------------------------")
-    print("Raw RF [0,0] maps to Image 3 / displayed stimulus centre:")
-    print(f"x = {origin_check[0]:.2f}, y = {origin_check[1]:.2f}")
-    print(
-        "Clicked displayed stimulus centre: "
-        f"x = {visual_stim_center_px_image3[0]:.2f}, "
-        f"y = {visual_stim_center_px_image3[1]:.2f}"
-    )
-    print("Raw -> projected transform: identity")
-    print(f"Stimulus edge used for clicks: {stimulus_edge_side.upper()}")
-
-    # AlignmentGeometry still uses the historical field names stim_top_left_px /
-    # stim_bottom_left_px. They are not used for the maths below; store the actual
-    # clicked top/bottom edge points there only for compatibility with the helper
-    # dataclass and output routines.
-    return AlignmentGeometry(
-        tform_image1_to_image3=tform_2_to_3_params,
-        um_per_px_image3=um_per_px_image3,
-        corrected_stim_um_per_px=corrected_stim_um_per_px,
-        rf_scale_factor=rf_scale_factor,
-        A_projected_um_to_image3=A_projected_um_to_image3,
-        A_image3_to_projected_um=A_image3_to_projected_um,
-        A_image1_to_projected_um=A_image1_to_projected_um,
-        A_raw_rf_to_projected_um=A_raw_rf_to_projected_um,
-        visual_stim_center_px_image3=visual_stim_center_px_image3,
-        stim_top_left_px=stim_edge_top_px,
-        stim_bottom_left_px=stim_edge_bottom_px,
+    """Kept for existing callers; see alignment_geometry.load_alignment_geometry."""
+    return load_alignment_geometry(
+        alignment_cache_path,
+        dataset_assumed_um_per_px=dataset_assumed_um_per_px,
+        displayed_stim_width_px=displayed_stim_width_px,
+        displayed_stim_height_px=displayed_stim_height_px,
     )
 
 
@@ -539,7 +382,8 @@ def extract_single_cell_rf_matching_rf_alignment(
 
     Order of operations is intentionally the same:
         1. select RF variable/channel
-        2. mirror RF data left <-> right, preserving x-coordinate labels
+        2. (v2) check the RF maps are in the stimulus frame; orientation is
+           applied by geometry.A_raw_rf_to_projected_um, not by flipping data
         3. select the requested cell
         4. normalise that cell, if requested
         5. scale x/y coordinates by rf_scale_factor
@@ -559,11 +403,10 @@ def extract_single_cell_rf_matching_rf_alignment(
     print("Variable:", rf_variable_name)
     print("Original dims:", combined.dims)
     print("Original shape:", combined.shape)
-    print(
-        "Applying fixed left-right RF mirror "
-        "(horizontal flip about central vertical line)."
-    )
-    combined = flip_rf_left_right(combined)
+    # ORIENTATION [RF ROTATION] RF data are NOT flipped here; they are placed/sampled through
+    #   geometry.A_raw_rf_to_projected_um = stimulus (x, y) -> projected (-y, -x).
+    require_v2_rf_frame(dataset)
+    print("v2: RF map in stimulus coordinates; placed via STIMULUS_TO_PROJECTION.")
 
     if "cell_index" in combined.dims:
         available_cells = combined["cell_index"].values
@@ -647,7 +490,7 @@ def extract_single_cell_rf_matching_rf_alignment(
         values = np.where(valid_displayed_mask_yx, values, np.nan)
 
     # EXACTLY as the RF alignment's single-cell zoom: find the strongest visible
-    # pixel AFTER the fixed mirror, scaling and optional clipping.
+    # pixel AFTER the fixed rotation, scaling and optional clipping.
     rf_for_peak = np.abs(values) if signed else values
     finite = np.isfinite(rf_for_peak)
     if not np.any(finite):

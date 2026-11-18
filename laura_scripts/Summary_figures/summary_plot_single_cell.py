@@ -1,5 +1,21 @@
+# summary_plot_single_cell.py — v2 version, using the v2 alignment (2026-11-18).
+# The original (v1) is in laura_scripts/legacy/Summary_figures/summary_plot_single_cell.py.
+#   * needs a v2 noise_data file (noise_data_v2.nc, RF maps in stimulus coordinates)
+#   * alignment geometry from alignment_geometry.load_alignment_geometry (shared):
+#     stimulus sizes / pixel size read from the alignment cache unless set in
+#     RFConfig, stimulus centre recomputed from the clicked edge
+#   * RF orientation: one transform, STIMULUS_TO_PROJECTION (x, y) -> (-y, -x);
+#     no left-right data flip
+#   * clipping to the displayed stimulus is done in projected coordinates
+#   Note: moving-bar directions on the polar panels are in the stimulus file's
+#   own convention, not in the projected (cone-image) frame of the RF panels.
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 from typing import Any, Iterable, Sequence
 
 import imageio.v3 as iio
@@ -11,6 +27,12 @@ import xarray as xr
 from matplotlib.colors import Normalize, TwoSlopeNorm
 from matplotlib.transforms import Affine2D
 from polarspike import Overview
+
+from laura_scripts.Alignment_pipeline.alignment_geometry import (
+    dataset_um_per_px,
+    load_alignment_geometry,
+    require_v2_rf_frame,
+)
 
 """Create per-cell retinal response plots and a combined summary figure.
 
@@ -123,12 +145,14 @@ class RFConfig:
     quality_variable: str = "quality"
     tilt_variable: str = "tilt"
     transform_tilt_reciprocal: bool = False
-    dataset_assumed_um_per_px: float = 2.0
-    displayed_stim_width_px: int = 800
-    displayed_stim_height_px: int = 800
-    # Match the main alignment script exactly:
-    # RF data are always mirrored left <-> right and raw RF coordinates are
-    # used directly in projected-stimulus coordinates (identity transform).
+    # Per-recording geometry, normally left as None:
+    #   dataset_assumed_um_per_px -> noise_pixel_size in noise_params.json
+    #   displayed_stim_*          -> this recording's v2 alignment cache
+    dataset_assumed_um_per_px: float | None = None
+    displayed_stim_width_px: int | None = None
+    displayed_stim_height_px: int | None = None
+    # v2: RF maps are in stimulus coordinates and are placed in the projection by
+    # STIMULUS_TO_PROJECTION (shared alignment_geometry.py); no data flip.
     clip_rf_to_displayed_stimulus: bool = True
     normalise_rf: bool = True
     rf_alpha: float = 0.5
@@ -481,20 +505,6 @@ def _coordinate_edges_from_centres(coords: np.ndarray) -> np.ndarray:
     return np.concatenate([[first], mid, [last]])
 
 
-def _flip_rf_left_right(da: xr.DataArray) -> xr.DataArray:
-    """Mirror RF data left <-> right while preserving x-coordinate labels.
-
-    This is the same operation used by the main alignment script: the RF DATA
-    are flipped along the x dimension, but the physical x-coordinate values are
-    deliberately left unchanged.
-    """
-    if "x" not in da.dims:
-        raise ValueError("Input DataArray must include an 'x' dimension.")
-
-    x_axis = da.get_axis_num("x")
-    return da.copy(data=np.flip(da.values, axis=x_axis), deep=True)
-
-
 def _transform_points(A: np.ndarray, points_xy: np.ndarray) -> np.ndarray:
     pts = np.asarray(points_xy, dtype=float)
     hom = np.column_stack([pts[:, 0], pts[:, 1], np.ones(len(pts))])
@@ -523,52 +533,26 @@ def _container_transform(container):
 
 # %% Alignment loading, dataset inspection and cell selection
 def load_alignment_state(cfg: PlotConfig) -> AlignmentState:
-    cache = np.load(cfg.alignment_cache_path, allow_pickle=True)
-    required = [
-        "tform_2_to_3_params",
-        "um_per_px_image3",
-        "stim_edge_top_px",
-        "stim_edge_bottom_px",
-        "visual_stim_center_px_image3",
-    ]
-    missing = [key for key in required if key not in cache.files]
-    if missing:
-        raise KeyError(
-            f"Alignment cache is missing keys {missing}. Available: {cache.files}"
-        )
-    tform_2_to_3 = np.asarray(cache["tform_2_to_3_params"], dtype=float)
-    um_per_px_image3 = float(np.asarray(cache["um_per_px_image3"]).squeeze())
-    stim_edge_top_px = np.asarray(cache["stim_edge_top_px"], dtype=float)
-    stim_edge_bottom_px = np.asarray(cache["stim_edge_bottom_px"], dtype=float)
-    stim_center = np.asarray(cache["visual_stim_center_px_image3"], dtype=float)
-    blue_line_vec = stim_edge_bottom_px - stim_edge_top_px
-    blue_line_length_px = np.linalg.norm(blue_line_vec)
-    if blue_line_length_px == 0:
-        raise ValueError("The cached stimulus-edge clicks are identical.")
-    corrected_stim_um_per_px = (
-        blue_line_length_px * um_per_px_image3 / cfg.rf.displayed_stim_height_px
+    """Alignment from the shared v2 loader (one copy of the geometry)."""
+    if cfg.rf.dataset_assumed_um_per_px is None:
+        cfg.rf.dataset_assumed_um_per_px = dataset_um_per_px(Path(cfg.noise_data_path).parent)
+    geometry = load_alignment_geometry(
+        cfg.alignment_cache_path,
+        dataset_assumed_um_per_px=cfg.rf.dataset_assumed_um_per_px,
+        displayed_stim_width_px=cfg.rf.displayed_stim_width_px,
+        displayed_stim_height_px=cfg.rf.displayed_stim_height_px,
     )
-    rf_scale_factor = corrected_stim_um_per_px / cfg.rf.dataset_assumed_um_per_px
-    down_unit = blue_line_vec / blue_line_length_px
-    right_unit = np.array([down_unit[1], -down_unit[0]], dtype=float)
-    px_per_um_image3 = 1.0 / um_per_px_image3
-    M = np.column_stack([right_unit * px_per_um_image3, down_unit * px_per_um_image3])
-    A_projected_to_image3 = np.eye(3)
-    A_projected_to_image3[:2, :2] = M
-    A_projected_to_image3[:2, 2] = stim_center
-    A_image3_to_projected = np.linalg.inv(A_projected_to_image3)
-    A_image1_to_projected = A_image3_to_projected @ tform_2_to_3
-
-    # Match the main alignment script exactly: raw RF/stimulus coordinates are
-    # already interpreted in projected-stimulus coordinates. No extra rotation
-    # or axis swap is applied here.
-    A_raw_to_projected = np.eye(3, dtype=float)
+    # Keep the sizes actually used, for clipping in analyse_rf.
+    loaded = np.load(cfg.alignment_cache_path, allow_pickle=True)
+    for name in ("displayed_stim_width_px", "displayed_stim_height_px"):
+        if getattr(cfg.rf, name) is None:
+            setattr(cfg.rf, name, int(np.asarray(loaded[name]).item()))
     return AlignmentState(
         cone_image=iio.imread(cfg.cone_image_path),
-        A_image1_to_projected_um=A_image1_to_projected,
-        A_raw_rf_to_projected_um=A_raw_to_projected,
-        corrected_stim_um_per_px=corrected_stim_um_per_px,
-        rf_scale_factor=rf_scale_factor,
+        A_image1_to_projected_um=geometry.A_image1_to_projected_um,
+        A_raw_rf_to_projected_um=geometry.A_raw_rf_to_projected_um,
+        corrected_stim_um_per_px=geometry.corrected_stim_um_per_px,
+        rf_scale_factor=geometry.rf_scale_factor,
     )
 
 
@@ -680,11 +664,10 @@ def analyse_rf(
     if "y" not in da.dims or "x" not in da.dims:
         raise ValueError(f"RF data must have x and y dims; got {da.dims}")
 
-    # Same fixed RF orientation as the main alignment script. First put the
-    # array into y,x display order, then mirror the DATA left <-> right while
-    # retaining the original physical x-coordinate labels.
+    # v2: maps are in stimulus coordinates; orientation comes from
+    # alignment.A_raw_rf_to_projected_um when drawing. Just put them in (y, x).
+    # ORIENTATION [AXIS ORDER only] rows = y, columns = x for imshow. Not a rotation.
     da = da.transpose("y", "x")
-    da = _flip_rf_left_right(da)
     values = np.asarray(da.values, dtype=float)
     if cfg.rf.normalise_rf:
         if cfg.rf.rf_variable == "cm_most_important":
@@ -709,11 +692,15 @@ def analyse_rf(
             cfg.rf.displayed_stim_height_px * alignment.corrected_stim_um_per_px
         ) / 2
         raw_x_grid_um, raw_y_grid_um = np.meshgrid(x_centres, y_centres)
+        # ORIENTATION [RF ROTATION] clip in projected coords: stimulus (x, y) -> projected (-y, -x).
+        A = alignment.A_raw_rf_to_projected_um
+        proj_x = A[0, 0] * raw_x_grid_um + A[0, 1] * raw_y_grid_um + A[0, 2]
+        proj_y = A[1, 0] * raw_x_grid_um + A[1, 1] * raw_y_grid_um + A[1, 2]
         valid_displayed_mask = (
-            (raw_x_grid_um >= -displayed_half_x_um)
-            & (raw_x_grid_um <= displayed_half_x_um)
-            & (raw_y_grid_um >= -displayed_half_y_um)
-            & (raw_y_grid_um <= displayed_half_y_um)
+            (proj_x >= -displayed_half_x_um)
+            & (proj_x <= displayed_half_x_um)
+            & (proj_y >= -displayed_half_y_um)
+            & (proj_y <= displayed_half_y_um)
         )
         values = np.where(valid_displayed_mask, values, np.nan)
 
@@ -784,6 +771,7 @@ def draw_rf(
             rf["y_edges"][-1],
             rf["y_edges"][0],
         ],
+        # ORIENTATION [RF ROTATION] RF drawn via stimulus (x, y) -> projected (-y, -x); data not flipped.
         transform=Affine2D(alignment.A_raw_rf_to_projected_um) + ax.transData,
         zorder=10,
     )
@@ -888,6 +876,7 @@ def analyse_sta(
         times = np.linspace(-cfg.rf.sta_time_before_spike_s, 0, len(values))
 
     if cfg.rf.sta_reverse_time:
+        # ORIENTATION [NOT RF] time reversal of the STA trace (if sta_reverse_time), not spatial.
         values = values[::-1]
         times = times[::-1]
 
@@ -1123,6 +1112,7 @@ def draw_scf(
     )
     ax_raster.set_xlim(0, cfg.duration_s)
     ax_raster.set_ylim(-0.5, cfg.expected_repeats - 0.5)
+    # ORIENTATION [NOT RF] raster only: trial 1 at the top.
     ax_raster.invert_yaxis()
     ax_raster.set_xlabel("Time (s)", fontsize=12)
     ax_raster.set_ylabel("Repeat", fontsize=12)
@@ -1275,6 +1265,7 @@ def draw_csteps(
         -0.5,
         cfg.expected_repeats - 0.5,
     )
+    # ORIENTATION [NOT RF] raster only: trial 1 at the top.
     ax_raster.invert_yaxis()
 
     ax_raster.set_xlabel(
@@ -1444,6 +1435,7 @@ def draw_chirp(
         cfg.expected_repeats - 0.5,
     )
 
+    # ORIENTATION [NOT RF] raster only: trial 1 at the top.
     ax_raster.invert_yaxis()
 
     ax_raster.set_ylabel(
@@ -1838,6 +1830,7 @@ def _draw_small_raster(
     )
     ax.set_xlim(0, direction_duration_s)
     ax.set_ylim(-0.5, cfg.expected_repeats - 0.5)
+    # ORIENTATION [NOT RF] raster only: trial 1 at the top.
     ax.invert_yaxis()
     ticks = np.arange(0, direction_duration_s + 0.01, 1)
     ax.set_xticks(ticks)
@@ -2153,6 +2146,7 @@ class CellPlotSession:
         else:
             print("Using the already-loaded NetCDF dataset.")
             self.dataset = dataset
+        require_v2_rf_frame(self.dataset, str(cfg.noise_data_path))
 
         cfg.output_dir.mkdir(parents=True, exist_ok=True)
         for subfolder in [
@@ -2729,7 +2723,7 @@ class CellPlotSession:
 # path itself changes or when you explicitly want a fresh disk read.
 
 NOISE_DATA_PATH = Path(
-    r"F:\Laura\zebrafish_22_07_2026\Phase_00\noise_analysis\noise_data.nc"
+    r"F:\Laura\zebrafish_22_07_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
 
 # During interactive work, close an older dataset before replacing it to avoid
@@ -2757,9 +2751,10 @@ config = PlotConfig(
         r"C:\Users\Laura Steel\Box\SUSSEX\Experiments\Zebrafish\Experiments\Imaging\20260722_dragonfly_microscope\cones(MAX_FLIPPED)_2026_07_22.jpg"
     ),
     alignment_cache_path=Path(
-        r"F:\Laura\zebrafish_22_07_2026\alignment_videos\zebrafish_22_07_2026_phase_00_alignment_cache.npz"
+        r"F:\Laura\zebrafish_22_07_2026\alignment_videos\zebrafish_22_07_2026_phase_00_alignment_cache_v2.npz"
     ),
-    output_dir=Path(r"F:\Laura\zebrafish_22_07_2026\Phase_00\separate_cell_plots"),
+    # v2 figures go to their own folder, so the old ones are not overwritten.
+    output_dir=Path(r"F:\Laura\zebrafish_22_07_2026\Phase_00\separate_cell_plots_v2"),
     rf=RFConfig(
         # This is the reference channel for STA, quality, tilt and ranking.
         # It does not restrict RF plotting: every channel in rf_variable is shown.

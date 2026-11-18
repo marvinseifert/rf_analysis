@@ -1,3 +1,5 @@
+# OS_analysis.py — v2 version for v2 data (2026-11-18). The original (v1) is in laura_scripts/legacy/OSI/OS_analysis.py.
+#   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
 # Imports
 
 from pathlib import Path
@@ -30,7 +32,7 @@ dataset_configs = [
     {
         "recording_id": "15_05_2026_p0",
         "overview_path": r"F:\Laura\zebrafish_15_05_2026\Phase_00\overview",
-        "noise_data_path": r"F:\Laura\zebrafish_15_05_2026\Phase_00\noise_analysis\noise_data.nc",
+        "noise_data_path": r"F:\Laura\zebrafish_15_05_2026\Phase_00\noise_analysis\noise_data_v2.nc",
         "stimulus_index": 4,  # moving bar stim
         "rf_channel": "12px_20Hz_25mins_shuffle_x12_white",
     },
@@ -38,21 +40,21 @@ dataset_configs = [
     # {
     #     "recording_id": "05_11_2025_p1",
     #     "overview_path": r"F:\Laura\zebrafish_05_11_2025\Phase_01\overview",
-    #     "noise_data_path": r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data.nc",
+    #     "noise_data_path": r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc",
     #     "stimulus_index": 5,
     #     "rf_channel": "12px_20Hz_shuffle",
     # },
     # {
     #     "recording_id": "02_12_2025_p1",
     #     "overview_path": r"F:\Laura\zebrafish_02_12_2025\Phase_01\overview",
-    #     "noise_data_path": r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data.nc",
+    #     "noise_data_path": r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data_v2.nc",
     #     "stimulus_index": 3,
     #     "rf_channel": "12px_20Hz_shuffle",
     # },
     #     {
     #         "recording_id": "26_02_2026_p0",
     #         "overview_path": r"F:\Laura\zebrafish_26_02_2026\Phase_00\overview",
-    #         "noise_data_path": r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data.nc",
+    #         "noise_data_path": r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data_v2.nc",
     #         "stimulus_index": 3,
     #         "rf_channel": "12px_20Hz_shuffle",
     #     },
@@ -1474,6 +1476,7 @@ def plot_small_raster_box(
 
     ax.set_xlim(0, direction_duration_s)
     ax.set_ylim(-0.5, expected_repeats - 0.5)
+    # ORIENTATION [NOT RF] raster only: trial 1 at the top.
     ax.invert_yaxis()
 
     # Label time from 0 to 5 seconds in 1-second intervals

@@ -1,15 +1,46 @@
+"""
+extract_cone_regularity.py — v2 version, using the v2 alignment (2026-11-18).
+The original (v1) is in laura_scripts/legacy/Seaborn/fff_feature_pipeline/.
+
+Differences:
+  * Needs a v2 noise_data file (RF maps in stimulus coordinates; see
+    combined_analysis/convert_noise_data_v2.py).
+  * Geometry comes from alignment_geometry.load_alignment_geometry (one shared
+    loader): displayed size and dataset pixel size are read from the alignment
+    cache unless given, and the stimulus centre is recomputed from the clicked edge.
+  * RF centre: strongest pixel in stimulus coordinates, placed in the projection
+    with STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x). No left-right data flip.
+  * Autocorrelation: the centre exclusion follows the SHAPE of the central peak
+    (connected positive region around zero shift) instead of a fixed 20 px disc,
+    and peaks touching the excluded region are rejected. The fixed 4.9 µm disc let
+    elongated central peaks through, giving a spurious ~4.9 µm "spacing" for every
+    cell. New column: cone_centre_exclusion_um (furthest extent of the exclusion).
+"""
+
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 import imageio.v3 as iio
 import numpy as np
 import pandas as pd
 import xarray as xr
-from scipy.ndimage import map_coordinates
+from scipy.ndimage import binary_dilation, label, map_coordinates
 from skimage import exposure, feature, filters
 from tqdm import tqdm
+
+from laura_scripts.Alignment_pipeline.alignment_geometry import (
+    STIMULUS_TO_PROJECTION,
+    dataset_um_per_px,
+    load_alignment_geometry,
+    require_v2_rf_frame,
+)
 
 
 @dataclass
@@ -21,22 +52,35 @@ class ConeRegularityConfig:
     alignment_cache_path: Path
     rf_channel: str
 
-    # RF map used to define the centre. This is the SAME RF map that is
-    # displayed by the alignment script. For covariance RFs the centre is the
-    # strongest absolute value after applying the same fixed left-right data flip.
+    # RF map used to define the centre (the same map the alignment script shows).
+    # For covariance RFs the centre is the strongest absolute value.
     rf_variable: str = "cm_most_important"
 
     # 200 means a 200 x 200 um square crop.
     crop_size_um: float = 200.0
 
-    # Same scale assumptions used by the alignment script.
-    dataset_assumed_um_per_px: float = 2.0  # NEED TO NOT HARDCODE
-    displayed_stim_height_px: int = 800  # NEED TO NOT HARDCODE
+    # Per-recording geometry, normally left as None:
+    #   dataset_assumed_um_per_px -> noise_pixel_size in noise_params.json
+    #   displayed_stim_*          -> this recording's v2 alignment cache
+    dataset_assumed_um_per_px: float | None = None
+    displayed_stim_width_px: int | None = None
+    displayed_stim_height_px: int | None = None
 
     # Autocorrelation settings.
     preprocess_sigma_px: float = 13.0
     ac_peak_min_distance_px: int = 10
     centre_exclusion_radius_px: int = 20
+    # v2: exclude the central autocorrelation peak by its SHAPE: the connected
+    # region around zero shift where the (normalised) autocorrelation exceeds
+    # central_peak_threshold, plus a disc of centre_exclusion_radius_px as a
+    # minimum. Peaks touching the excluded region are rejected (cut-off artefacts:
+    # the central peak's tail just falls away from the edge). The threshold keeps
+    # the region compact; at 0 it leaked along cone rows.
+    # With a fixed 20 px (4.9 µm) disc, elongated cones made the central peak
+    # stick out of the disc and its two tips were picked as the "first shell"
+    # (spacing ~4.9 µm for every cell).
+    adaptive_centre_exclusion: bool = True
+    central_peak_threshold: float = 0.25
     max_num_ac_peaks: int = 80
     ac_peak_threshold_rel: float = 0.08
     first_shell_tol: float = 0.25
@@ -98,158 +142,24 @@ def _prepare_cone_intensity(image: np.ndarray) -> np.ndarray:
     ).astype(float)
 
 
-def _cached_stimulus_edge_points(cache) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Load the cached top/bottom points of the clicked vertical stimulus edge.
-
-    Current caches:
-        stim_edge_top_px / stim_edge_bottom_px
-
-    Older right-edge caches:
-        stim_top_right_px / stim_bottom_right_px
-    """
-    if "stim_edge_top_px" in cache.files and "stim_edge_bottom_px" in cache.files:
-        return (
-            np.asarray(cache["stim_edge_top_px"], dtype=float),
-            np.asarray(cache["stim_edge_bottom_px"], dtype=float),
-        )
-
-    if "stim_top_right_px" in cache.files and "stim_bottom_right_px" in cache.files:
-        return (
-            np.asarray(cache["stim_top_right_px"], dtype=float),
-            np.asarray(cache["stim_bottom_right_px"], dtype=float),
-        )
-
-    raise KeyError(
-        "Alignment cache does not contain stimulus-edge points. "
-        "Expected either stim_edge_top_px/stim_edge_bottom_px or "
-        "stim_top_right_px/stim_bottom_right_px."
-    )
-
-
 def _load_alignment_geometry(config: ConeRegularityConfig) -> dict:
-    """
-    Reconstruct the same cone-image <-> projected-RF alignment used by the
-    alignment script.
-    """
-    cache = np.load(
+    """Cone-image <-> projected-µm geometry from the shared v2 loader."""
+    geometry = load_alignment_geometry(
         config.alignment_cache_path,
-        allow_pickle=True,
+        dataset_assumed_um_per_px=config.dataset_assumed_um_per_px,
+        displayed_stim_width_px=config.displayed_stim_width_px,
+        displayed_stim_height_px=config.displayed_stim_height_px,
     )
-
-    required = (
-        "tform_2_to_3_params",
-        "um_per_px_image3",
-        "visual_stim_center_px_image3",
-    )
-
-    missing = [key for key in required if key not in cache.files]
-    if missing:
-        raise KeyError(
-            "Alignment cache is missing required entries: "
-            f"{missing}. Run the alignment script first."
-        )
-
-    tform_2_to_3_params = np.asarray(
-        cache["tform_2_to_3_params"],
-        dtype=float,
-    )
-
-    um_per_px_image3 = float(np.asarray(cache["um_per_px_image3"]).squeeze())
-
-    visual_stim_center_px_image3 = np.asarray(
-        cache["visual_stim_center_px_image3"],
-        dtype=float,
-    )
-
-    stim_edge_top_px, stim_edge_bottom_px = _cached_stimulus_edge_points(cache)
-
-    clicked_edge_vec_px = stim_edge_bottom_px - stim_edge_top_px
-
-    clicked_edge_length_px = float(np.linalg.norm(clicked_edge_vec_px))
-
-    if clicked_edge_length_px == 0:
-        raise ValueError("Cached stimulus top/bottom edge points are identical.")
-
-    # Same scale correction as the alignment script.
-    clicked_edge_length_um = clicked_edge_length_px * um_per_px_image3
-
-    corrected_stim_um_per_px = clicked_edge_length_um / float(
-        config.displayed_stim_height_px
-    )
-
-    rf_scale_factor = corrected_stim_um_per_px / config.dataset_assumed_um_per_px
-
-    # projected-stimulus um -> Image 3 pixels
-    px_per_um_image3 = 1.0 / um_per_px_image3
-
-    stim_down_unit_px = clicked_edge_vec_px / clicked_edge_length_px
-
-    stim_right_unit_px = np.array(
-        [
-            stim_down_unit_px[1],
-            -stim_down_unit_px[0],
-        ],
-        dtype=float,
-    )
-
-    M_projected_um_to_image3 = np.column_stack(
-        [
-            stim_right_unit_px * px_per_um_image3,
-            stim_down_unit_px * px_per_um_image3,
-        ]
-    )
-
-    A_projected_um_to_image3 = np.eye(
-        3,
-        dtype=float,
-    )
-
-    A_projected_um_to_image3[:2, :2] = M_projected_um_to_image3
-
-    A_projected_um_to_image3[:2, 2] = visual_stim_center_px_image3
-
-    A_image3_to_projected_um = np.linalg.inv(A_projected_um_to_image3)
-
-    # Same chain as the RF alignment script:
-    # cone/Image1 pixels -> Image3 pixels -> projected stimulus um
-    A_image1_to_projected_um = A_image3_to_projected_um @ tform_2_to_3_params
-
-    A_projected_um_to_image1 = np.linalg.inv(A_image1_to_projected_um)
-
-    # Equivalent isotropic physical pixel size for crop resampling.
+    A_image1_to_projected_um = geometry.A_image1_to_projected_um
     linear = A_image1_to_projected_um[:2, :2]
-
-    native_cone_um_per_px = float(np.sqrt(abs(np.linalg.det(linear))))
-
-    cache.close()
-
     return {
-        "rf_scale_factor": float(rf_scale_factor),
-        "corrected_stim_um_per_px": float(corrected_stim_um_per_px),
+        "rf_scale_factor": float(geometry.rf_scale_factor),
+        "corrected_stim_um_per_px": float(geometry.corrected_stim_um_per_px),
         "A_image1_to_projected_um": A_image1_to_projected_um,
-        "A_projected_um_to_image1": A_projected_um_to_image1,
-        "native_cone_um_per_px": native_cone_um_per_px,
+        "A_projected_um_to_image1": np.linalg.inv(A_image1_to_projected_um),
+        # Equivalent isotropic physical pixel size for crop resampling.
+        "native_cone_um_per_px": float(np.sqrt(abs(np.linalg.det(linear)))),
     }
-
-
-def _flip_rf_left_right(da: xr.DataArray) -> xr.DataArray:
-    """
-    Exact left-right RF flip used by RF_alignment_simplified.py.
-
-    The RF DATA are reversed along x, while the x-coordinate labels are left
-    unchanged. This moves the RF contents to the opposite physical x positions.
-    """
-    if "x" not in da.dims:
-        raise ValueError("Input DataArray must include an 'x' dimension.")
-
-    x_axis = da.get_axis_num("x")
-    flipped_values = np.flip(da.values, axis=x_axis)
-
-    return da.copy(
-        data=flipped_values,
-        deep=True,
-    )
 
 
 def _rf_centre_projected_um(
@@ -259,76 +169,47 @@ def _rf_centre_projected_um(
     rf_scale_factor: float,
 ) -> tuple[float, float]:
     """
-    Locate the centre of the ACTUAL RF that is plotted by the alignment script.
+    Centre of the cell's RF in projected-stimulus µm (the frame the cone image
+    is aligned to).
 
-    This deliberately does NOT use dataset["positions"]. Instead it reproduces
-    the spatial operations applied to the RF image in RF_alignment_simplified.py:
-
-        1. Select config.rf_variable and config.rf_channel.
-        2. Select the requested cell.
-        3. Apply the fixed left-right RF DATA flip, leaving x coordinates fixed.
-        4. Find the strongest visible RF pixel. For signed covariance this is the
-           largest absolute value, so either a strong positive or negative RF can
-           define the centre.
-        5. Convert that plotted array position through dataset x/y coordinates.
-        6. Apply the same rf_scale_factor used to draw the RF map.
-
-    Raw RF -> projected-stimulus coordinates is identity in the current alignment
-    script, so these corrected x/y values are already projected-stimulus um.
+        1. Select config.rf_variable / config.rf_channel / the cell.
+        2. Strongest pixel (|value| for signed covariance) in STIMULUS coordinates.
+        3. Scale by rf_scale_factor and place in the projection with
+           STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x).
     """
     if config.rf_variable not in dataset:
         raise KeyError(
-            f"noise_data.nc does not contain dataset[{config.rf_variable!r}]."
+            f"noise_data does not contain dataset[{config.rf_variable!r}]."
         )
-
     da = dataset[config.rf_variable]
-
     if "channel" in da.dims:
         da = da.sel(channel=config.rf_channel)
-
     if "cell_index" not in da.dims:
         raise ValueError(
             f"dataset[{config.rf_variable!r}] does not contain a cell_index "
             f"dimension. Dims: {da.dims}"
         )
-
+    # ORIENTATION [AXIS ORDER only] rows = y, columns = x for indexing. Not a rotation.
     da = da.sel(cell_index=int(cell_index)).transpose("y", "x")
 
-    # EXACT same fixed left-right RF mirror used before plotting.
-    da = _flip_rf_left_right(da)
-
     values = np.asarray(da.values, dtype=float)
-
     finite = np.isfinite(values)
     if not np.any(finite):
         return np.nan, np.nan
+    peak_metric = np.where(finite, np.abs(values), -np.inf)
+    peak_y_i, peak_x_i = np.unravel_index(np.argmax(peak_metric), peak_metric.shape)
 
-    # cm_most_important is signed. The visible RF centre is defined by the
-    # strongest magnitude, matching the single-cell plotted-RF peak logic.
-    peak_metric = np.abs(values)
-    peak_metric[~finite] = -np.inf
-
-    if np.all(peak_metric == -np.inf):
-        return np.nan, np.nan
-
-    peak_y_i, peak_x_i = np.unravel_index(
-        np.argmax(peak_metric),
-        peak_metric.shape,
+    stimulus_xy = np.array(
+        [
+            float(da["x"].isel(x=peak_x_i).item()) * rf_scale_factor,
+            float(da["y"].isel(y=peak_y_i).item()) * rf_scale_factor,
+        ]
     )
-
-    # Because the flip changed the DATA but deliberately left coordinate labels
-    # unchanged, these are the physical coordinates at which that flipped RF
-    # peak is actually plotted.
-    peak_raw_x_dataset_units = float(da["x"].isel(x=peak_x_i).item())
-    peak_raw_y_dataset_units = float(da["y"].isel(y=peak_y_i).item())
-
-    peak_projected_x_um = peak_raw_x_dataset_units * rf_scale_factor
-    peak_projected_y_um = peak_raw_y_dataset_units * rf_scale_factor
-
-    return (
-        float(peak_projected_x_um),
-        float(peak_projected_y_um),
-    )
+    # ORIENTATION [RF ROTATION] RF peak (stimulus coords) -> projected: (x, y) -> (-y, -x).
+    projected_x_um, projected_y_um = _transform_points(
+        STIMULUS_TO_PROJECTION, stimulus_xy[None, :]
+    )[0]
+    return float(projected_x_um), float(projected_y_um)
 
 
 def _sample_aligned_square_crop(
@@ -470,6 +351,7 @@ def detect_autocorr_peaks(
     exclude_radius: int,
     num_peaks: int,
     threshold_rel: float,
+    exclude_mask: np.ndarray | None = None,
 ):
     cy, cx = np.array(ac.shape) // 2
 
@@ -477,9 +359,12 @@ def detect_autocorr_peaks(
 
     rr = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
 
+    if exclude_mask is None:
+        exclude_mask = rr < exclude_radius
+
     work = ac.copy()
 
-    work[rr < exclude_radius] = 0
+    work[exclude_mask] = 0
 
     coords = feature.peak_local_max(
         work,
@@ -488,6 +373,12 @@ def detect_autocorr_peaks(
         num_peaks=num_peaks,
         exclude_border=False,
     )
+
+    # v2: a maximum on the edge of the excluded region is an artefact of the
+    # cut-off (values just fall away from the central peak), not a lattice peak.
+    if len(coords):
+        touching = binary_dilation(exclude_mask, iterations=2)
+        coords = coords[~touching[coords[:, 0], coords[:, 1]]]
 
     if len(coords) == 0:
         return (
@@ -533,6 +424,25 @@ def detect_autocorr_peaks(
         radii,
         angles,
     )
+
+
+def central_peak_mask(
+    ac: np.ndarray, min_radius_px: int, threshold: float = 0.25
+) -> np.ndarray:
+    """
+    Boolean mask of the central (zero-shift) autocorrelation peak: the connected
+    region where ac > threshold (ac is normalised so the centre is 1) that
+    contains the centre, joined with a disc of min_radius_px. Follows the peak's
+    real shape, so elongated cones are covered.
+    """
+    cy, cx = np.array(ac.shape) // 2
+    yy, xx = np.indices(ac.shape)
+    mask = np.hypot(yy - cy, xx - cx) < min_radius_px
+    regions, _ = label(ac > threshold)
+    centre_region = regions[cy, cx]
+    if centre_region > 0:
+        mask |= regions == centre_region
+    return mask
 
 
 def first_shell_mask(
@@ -588,6 +498,16 @@ def analyse_cone_crop(
 
     ac = compute_autocorrelation(proc)
 
+    exclude_mask = None
+    exclude_radius_px = float(config.centre_exclusion_radius_px)
+    if config.adaptive_centre_exclusion:
+        exclude_mask = central_peak_mask(
+            ac, int(config.centre_exclusion_radius_px), config.central_peak_threshold
+        )
+        cy, cx = np.array(ac.shape) // 2
+        my, mx = np.nonzero(exclude_mask)
+        exclude_radius_px = float(np.max(np.hypot(my - cy, mx - cx)))  # furthest extent
+
     (
         peak_coords,
         _,
@@ -596,7 +516,8 @@ def analyse_cone_crop(
     ) = detect_autocorr_peaks(
         ac,
         min_distance=(config.ac_peak_min_distance_px),
-        exclude_radius=(config.centre_exclusion_radius_px),
+        exclude_radius=int(config.centre_exclusion_radius_px),
+        exclude_mask=exclude_mask,
         num_peaks=(config.max_num_ac_peaks),
         threshold_rel=(config.ac_peak_threshold_rel),
     )
@@ -609,7 +530,9 @@ def analyse_cone_crop(
     n_shell = int(shell_mask.sum()) if len(shell_mask) else 0
 
     if n_shell == 0:
-        return _empty_autocorr_metrics(regularity=0.0)
+        empty = _empty_autocorr_metrics(regularity=0.0)
+        empty["cone_centre_exclusion_um"] = exclude_radius_px * um_per_px
+        return empty
 
     shell_r_px = peak_radii_px[shell_mask]
 
@@ -668,6 +591,7 @@ def analyse_cone_crop(
         "cone_spacing_std_um": spacing_std,
         "cone_spacing_cv": spacing_cv,
         "cone_first_shell_n_peaks": float(n_shell),
+        "cone_centre_exclusion_um": exclude_radius_px * um_per_px,
     }
 
 
@@ -683,6 +607,7 @@ def _empty_autocorr_metrics(
         "cone_spacing_std_um": np.nan,
         "cone_spacing_cv": np.nan,
         "cone_first_shell_n_peaks": 0.0,
+        "cone_centre_exclusion_um": np.nan,
     }
 
 
@@ -698,10 +623,9 @@ def calculate_cone_regularity_features(
 
     For each cell:
         1. Select the same RF map/channel used by the alignment script.
-        2. Apply the exact same fixed left-right RF DATA flip.
-        3. Find the strongest visible RF pixel in that plotted map.
-        4. Convert that plotted position through the RF x/y coordinates and apply
-           the same RF scale correction as the alignment script.
+        2. Find the strongest RF pixel (stimulus coordinates).
+        3. Scale it and place it in the projection with STIMULUS_TO_PROJECTION
+           (v2 alignment; no data flip).
         5. Use the cached cone alignment to sample a physical square centred
            on that RF centre.
         6. Run autocorrelation on that cone crop.
@@ -717,6 +641,11 @@ def calculate_cone_regularity_features(
     )
 
     dataset = xr.load_dataset(config.noise_data_path)
+    require_v2_rf_frame(dataset, str(config.noise_data_path))
+    if config.dataset_assumed_um_per_px is None:
+        config.dataset_assumed_um_per_px = dataset_um_per_px(
+            config.noise_data_path.parent, dataset
+        )
 
     cone_image = iio.imread(config.cone_image_path)
 
@@ -736,7 +665,7 @@ def calculate_cone_regularity_features(
 
     print(
         f"RF centre source: strongest plotted {config.rf_variable} pixel "
-        "after alignment-script left-right flip"
+        "(stimulus coords -> projection, v2 alignment)"
     )
 
     print(f"Crop: {config.crop_size_um:.1f} x " f"{config.crop_size_um:.1f} um")

@@ -1,3 +1,7 @@
+# seaborn_plots.py — v2 version for v2 data (2026-11-18). The original (v1) is in laura_scripts/legacy/Seaborn/fff_feature_pipeline/seaborn_plots.py.
+#   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
+#   * angle is now in the stimulus frame (= 90° - old); sizes use the corrected values
+#   * reads fff_data_v2.nc (corrected alignment + cone regularity)
 # %% Seaborn comparison of RF and FFF traits - MULTIPLE RECORDINGS
 
 from pathlib import Path
@@ -113,9 +117,9 @@ def load_recording(
     # Paths
     # --------------------------------------------------------
 
-    rf_data_path = root_path / "noise_analysis" / "noise_data.nc"
+    rf_data_path = root_path / "noise_analysis" / "noise_data_v2.nc"
 
-    fff_data_path = root_path / "fff_analysis" / "fff_data.nc"
+    fff_data_path = root_path / "fff_analysis" / "fff_data_v2.nc"
 
     print("\n" + "=" * 80)
     print(f"LOADING RECORDING: {recording_id}")

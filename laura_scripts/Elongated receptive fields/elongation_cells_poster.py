@@ -1,3 +1,6 @@
+# elongation_cells_poster.py — v2 version for v2 data (2026-11-18). The original (v1) is in laura_scripts/legacy/Elongated receptive fields/elongation_cells_poster.py.
+#   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
+#   * RF maps drawn y-down (yincrease=False): the stimulus file's own layout
 # %%
 def cutout_nans(data, inset=0):
     import numpy as np
@@ -28,22 +31,22 @@ import matplotlib.ticker as mticker
 # LOAD DATASETS
 # ------------------------------------------------------------
 path_phase0 = Path(
-    r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data.nc"
+    r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc"
 )
 
 path_phase1 = Path(
-    r"F:\Laura\zebrafish_15_01_2026\Phase_00\noise_analysis\noise_data.nc"
+    r"F:\Laura\zebrafish_15_01_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
 
 path_phase2 = Path(
-    r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data.nc"
+    r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
 dataset_phase0 = xr.load_dataset(path_phase0)
 dataset_phase1 = xr.load_dataset(path_phase1)
 dataset_phase2 = xr.load_dataset(path_phase2)
 # %%
 path_phase3 = Path(
-    r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data.nc"
+    r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data_v2.nc"
 )
 dataset_phase3 = xr.load_dataset(path_phase3)
 datasets = [dataset_phase0, dataset_phase1, dataset_phase2, dataset_phase3]
@@ -151,6 +154,9 @@ for idx, (dataset, cell_id, elong) in enumerate(candidates):
     # PLOT
     # --------------------------------------------------------
     im = rf_image_crop.plot.imshow(
+        x="x",
+        y="y",
+        yincrease=False,  # ORIENTATION [DISPLAY only] y down = stimulus-file layout; data not rotated
         ax=ax,
         cmap="coolwarm",
         add_colorbar=False,
@@ -270,6 +276,9 @@ for idx, (dataset, cell_id, elong) in enumerate(selected):
     # PLOT
     # --------------------------------------------------------
     im = rf_image_crop.plot.imshow(
+        x="x",
+        y="y",
+        yincrease=False,  # ORIENTATION [DISPLAY only] y down = stimulus-file layout; data not rotated
         ax=ax,
         cmap="coolwarm",
         add_colorbar=False,

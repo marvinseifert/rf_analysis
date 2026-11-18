@@ -10,7 +10,7 @@ import einops
 from scipy.spatial.distance import cdist
 from pathlib import Path
 
-from laura_scripts.subunit_sparsity_plots import pixel_size
+from laura_scripts.Subunits.subunit_sparsity_plots import pixel_size
 from s_nmf.factorization import semi_nmf_hals
 from rf_torch.parameters import Cell_Params
 from pickle import dump, load
