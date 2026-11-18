@@ -20,7 +20,7 @@ from functools import partial
 import json
 from rf_analysis import calculate_quality
 import warnings
-from combined_analysis.reduce_all_old import sta_2d_cov_collapse, circular_reduction
+from combined_analysis.reduce_all import sta_2d_cov_collapse, circular_reduction
 import numpy as np
 from stats.summary import calculate_stats
 
