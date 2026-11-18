@@ -23,6 +23,7 @@ def cutout_nans(data, inset=0):
 
 from pathlib import Path
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.ticker as mticker
@@ -41,14 +42,14 @@ path_phase1 = Path(
 path_phase2 = Path(
     r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
-dataset_phase0 = xr.load_dataset(path_phase0)
-dataset_phase1 = xr.load_dataset(path_phase1)
-dataset_phase2 = xr.load_dataset(path_phase2)
+dataset_phase0 = load_noise_data(path_phase0)
+dataset_phase1 = load_noise_data(path_phase1)
+dataset_phase2 = load_noise_data(path_phase2)
 # %%
 path_phase3 = Path(
     r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data_v2.nc"
 )
-dataset_phase3 = xr.load_dataset(path_phase3)
+dataset_phase3 = load_noise_data(path_phase3)
 datasets = [dataset_phase0, dataset_phase1, dataset_phase2, dataset_phase3]
 # %%
 # ------------------------------------------------------------

@@ -1,6 +1,6 @@
 # v2 ALIGNMENT (2026-11-18) — differences from the original, legacy/Alignment_pipeline/RF_alignment.py:
 #   * Needs a v2 noise_data file (noise_data_v2.nc from
-#     combined_analysis/convert_noise_data_v2.py, or a new run of RF_pipeline_v2.py).
+#     combined_analysis/convert_noise_data_v2.py, or a new run of combined_analysis/RF_pipeline.py (v2)).
 #     Its RF maps are in STIMULUS coordinates, like kernel.npy and positions.
 #   * Orientation is ONE transform per recording, not a data flip, chosen by date in
 #     alignment_geometry.stimulus_to_projection_for_recording():
@@ -26,6 +26,7 @@ import json
 import imageio.v3 as iio
 import numpy as np
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 import matplotlib
 
 matplotlib.use("Qt5Agg")
@@ -780,7 +781,7 @@ print("------------------------------------------------------------")
 print("LOADING DATA")
 print("------------------------------------------------------------")
 
-dataset = xr.load_dataset(path_to_data)
+dataset = load_noise_data(path_to_data)
 require_v2_rf_frame(dataset, str(path_to_data))
 
 # v2: read, not typed (see the settings at the top of CELL 1).

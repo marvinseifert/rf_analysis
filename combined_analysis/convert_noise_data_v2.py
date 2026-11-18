@@ -6,9 +6,9 @@ What it does
 ------------
 1. rms and cm_most_important: swap x and y back. reduce_all.py pasted every map
    with x and y exchanged; on the square grids used here, swapping the whole grid
-   back gives exactly what reduce_all_v2.py produces.
-2. Recompute the polar outlines (reduce_all_v2.compute_circular_outlines, 1-px radius
-   steps) and the RF stats (summary_v2.compute_rf_stats, areas in true mm²).
+   back gives exactly what reduce_all.py (v2) produces.
+2. Recompute the polar outlines (reduce_all.compute_circular_outlines, 1-px radius
+   steps) and the RF stats (summary.compute_rf_stats, areas in true mm²).
 3. Mark the file with attrs["rf_map_frame"] = "stimulus_v2".
 
 Everything else (quality, positions, sta_path, sta_single_pixel) is copied as is.
@@ -33,8 +33,8 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
-from combined_analysis.reduce_all_v2 import RF_MAP_FRAME, compute_circular_outlines
-from stats.summary_v2 import compute_rf_stats
+from combined_analysis.reduce_all import RF_MAP_FRAME, compute_circular_outlines
+from stats.summary import compute_rf_stats
 
 MAP_VARIABLES = ("rms", "cm_most_important")
 OUTLINE_VARIABLES = (
@@ -75,7 +75,7 @@ def swap_map_axes(ds: xr.Dataset) -> xr.Dataset:
         raise ValueError(
             "Expected a square grid with identical x and y coordinates; got "
             f"x={ds.sizes['x']}, y={ds.sizes['y']}. Rerun the pipeline with "
-            "reduce_all_v2.py instead."
+            "combined_analysis/reduce_all.py (v2) instead."
         )
     for name in MAP_VARIABLES:
         if name not in ds:

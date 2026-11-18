@@ -1,9 +1,11 @@
-"""
-summary_v2.py — fixed copy of stats/summary.py (2026-11-18). summary.py is unchanged.
-RF areas are computed from outlines that are already in µm, so they are no longer
-multiplied by pixel_size² (summary.py made them pixel_size² too large).
-"""
+# WARNING (2026-11-18): do not use calculate_stats from this file. It multiplies
+# RF areas by pixel_size² although the outlines are already in µm, so
+# center_size_mm2 / surround_size_mm2 come out pixel_size² too large (4x for 2 µm
+# pixels). It also expects outlines from reduce_all.py, which are 1.41x too large.
+# LEGACY (v1): use stats/summary.py (v2, with combined_analysis/reduce_all.py and
+# RF_pipeline.py) instead. Kept for reference; moved here on 18/11/2026.
 from __future__ import annotations
+import warnings
 from typing import List, Dict
 import xarray as xr
 import numpy as np
@@ -75,21 +77,33 @@ def project_radii_to_xy(radii: List[float]) -> np.ndarray:
     return np.column_stack((x_coords, y_coords))
 
 
-def compute_rf_stats(ds: xr.Dataset, channel_names: list[str]) -> xr.Dataset:
-    """
-    RF size (mm², from the µm outlines), TIR, centre shift, tilt and angle (v2).
-
-    Pure calculation (no configs, no file I/O), used by calculate_stats below and by
-    combined_analysis/convert_noise_data_v2.py. Angles are in stimulus coordinates
-    (0° = +x / right, measured towards +y / down), from the v2 outlines.
-    """
+@depends_on("calculate_rf_quality")
+@depends_on("sta_2d_cov_collapse")
+@depends_on("circular_reduction")
+def calculate_stats(
+    recording_config: "Recording_Config",
+    collapse_2d_config: "Collapse_2d_Config",
+    circular_reduction_config: "Circular_Reduction_Config",
+    analysis_folder: str,
+):
+    warnings.warn(
+        "legacy/stats/summary.py (v1) calculate_stats gives RF areas pixel_size² too large. "
+        "Use stats/summary.py (v2) instead.",
+        stacklevel=2,
+    )
+    ds = xr.load_dataset(
+        recording_config.root_path
+        / recording_config.output_folder
+        / analysis_folder
+        / "noise_data.nc",
+    )
     # % Predefine outputs
     template = xr.DataArray(
-        np.zeros((ds.cell_index.shape[0], len(channel_names))),
+        np.zeros((ds.cell_index.shape[0], len(recording_config.channel_names))),
         dims=["cell_index", "channel"],
         coords={
             "cell_index": ds.cell_index,
-            "channel": channel_names,
+            "channel": recording_config.channel_names,
         },
     )
     # Create all arrays using the template
@@ -101,6 +115,7 @@ def compute_rf_stats(ds: xr.Dataset, channel_names: list[str]) -> xr.Dataset:
     angles = xr.zeros_like(template)
 
     # loop over cells and channels
+    channel_names = recording_config.channel_names
     with np.errstate(divide="ignore", invalid="ignore"):
         for (cell_position, cell_index), channel in tqdm(
             product(enumerate(ds.cell_index), channel_names),
@@ -123,13 +138,15 @@ def compute_rf_stats(ds: xr.Dataset, channel_names: list[str]) -> xr.Dataset:
                 )
             ]
 
-            # Outlines are already in µm, so the area is in µm²; µm² -> mm².
             center_sizes_mm2.loc[dict(cell_index=cell_index, channel=channel)] = (
-                np.asarray(center_size) * 1e-6
+                np.asarray(center_size)
+                * np.asarray(recording_config.channel_configs[channel].pixel_size) ** 2
+                * 1e-6
             )[0]
-            # Outlines are already in µm, so the area is in µm²; µm² -> mm².
             surround_sizes_mm2.loc[dict(cell_index=cell_index, channel=channel)] = (
-                np.asarray(surround_size) * 1e-6
+                np.asarray(surround_size)
+                * np.asarray(recording_config.channel_configs[channel].pixel_size) ** 2
+                * 1e-6
             )[0]
 
             positions = project_radii_to_xy(
@@ -187,23 +204,11 @@ def compute_rf_stats(ds: xr.Dataset, channel_names: list[str]) -> xr.Dataset:
     ds["center_shift"] = center_shifts
     ds["tilt"] = tilts
     ds["angle"] = angles
-    return ds
-
-
-@depends_on("calculate_rf_quality")
-@depends_on("sta_2d_cov_collapse")
-@depends_on("circular_reduction")
-def calculate_stats(
-    recording_config: "Recording_Config",
-    collapse_2d_config: "Collapse_2d_Config",
-    circular_reduction_config: "Circular_Reduction_Config",
-    analysis_folder: str,
-):
-    path = (
+    ds.to_netcdf(
         recording_config.root_path
         / recording_config.output_folder
         / analysis_folder
-        / "noise_data_v2.nc"
+        / "noise_data.nc",
+        engine="netcdf4",
+        # encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
     )
-    ds = compute_rf_stats(xr.load_dataset(path), recording_config.channel_names)
-    ds.to_netcdf(path, engine="netcdf4")

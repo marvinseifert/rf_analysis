@@ -25,6 +25,7 @@ import imageio.v3 as iio
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 from matplotlib.transforms import Affine2D
 from PIL import Image
 
@@ -118,7 +119,7 @@ if _args.variable:
 panels = []
 for recording, channel in RECORDINGS:
     data_file = noise_data_file(recording)
-    with xr.open_dataset(data_file) as ds:
+    with load_noise_data(data_file, lazy=True) as ds:
         g.require_v2_rf_frame(ds)
         maps = {}
         for variable in RF_VARIABLES:

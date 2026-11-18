@@ -1,12 +1,13 @@
 # weighted_STA.py — v2 version for v2 data (2026-11-18). The original (v1) is in laura_scripts/legacy/RF_analysis/weighted_STA.py.
 #   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
 #   * weight/mask maps (stored x, y) drawn transposed and y-down (stimulus-file layout)
-#   * uses loading/load_sta_v2.py
+#   * uses loading/load_sta.py (v2)
 from pathlib import Path
 import numpy as np
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 
-from loading.load_sta_v2 import load_and_realign_center
+from loading.load_sta import load_and_realign_center
 from dim_reduction.rms_error import calculate_rms
 
 from scipy import ndimage
@@ -125,7 +126,7 @@ def calculate_weighted_sta_for_cells(
             f"weight_method must be one of {valid_methods}. " f"Got: {weight_method}"
         )
 
-    ds = xr.load_dataset(noise_data_path)
+    ds = load_noise_data(noise_data_path)
 
     # ------------------------------------------------------------
     # Default settings
@@ -519,7 +520,7 @@ noise_data_path = (
     rec_object.root_path / rec_object.output_folder / "noise_analysis" / "noise_data_v2.nc"
 )
 
-dataset = xr.load_dataset(noise_data_path)
+dataset = load_noise_data(noise_data_path)
 rec_config = Recording_Config.load_from_root_json(noise_data_path.parent)
 # %%
 

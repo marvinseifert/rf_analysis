@@ -1,12 +1,6 @@
-"""
-RF_pipeline_v2.py — same as RF_pipeline.py but uses the fixed v2 functions
-(reduce_all_v2.py, summary_v2.py): RF maps stored in stimulus coordinates,
-outlines/sizes in true µm / mm². RF_pipeline.py is unchanged.
-
-Note: Analysis_Pipeline.load() looks tasks up in organize/configs.py's registry,
-which points at the OLD functions. Run this script top to bottom (as below) rather
-than re-loading a saved pipeline, so the v2 functions are the ones that run.
-"""
+# LEGACY (v1), kept for reference; moved here on 18/11/2026. Use combined_analysis/RF_pipeline.py (v2).
+# v1 stores RF maps with x and y swapped and outlines 1.41x too large.
+# Only change made when moving: imports point at the other legacy files.
 from pathlib import Path
 from organize.configs import (
     Recording_Config,
@@ -15,9 +9,9 @@ from organize.configs import (
     Collapse_2d_Config,
 )
 from location.x_array import x_y_and_scale
-from combined_analysis.reduce_all_v2 import sta_2d_cov_collapse, circular_reduction
+from legacy.combined_analysis.reduce_all import sta_2d_cov_collapse, circular_reduction
 from rf_analysis.calculate_quality import calculate_rf_quality
-from stats.summary_v2 import calculate_stats
+from legacy.stats.summary import calculate_stats
 
 if __name__ == "__main__":
     # %% Creating Recording_Config object

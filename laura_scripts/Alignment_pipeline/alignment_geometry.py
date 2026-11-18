@@ -95,7 +95,7 @@ def stimulus_to_projection_for_recording(name) -> tuple[np.ndarray, str]:
     )
 
 
-# Value of noise_data.nc attrs["rf_map_frame"] written by reduce_all_v2.py and
+# Value of noise_data.nc attrs["rf_map_frame"] written by combined_analysis/reduce_all.py (v2) and
 # combined_analysis/convert_noise_data_v2.py.
 RF_MAP_FRAME_V2 = "stimulus_v2"
 

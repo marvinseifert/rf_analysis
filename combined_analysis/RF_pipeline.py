@@ -1,3 +1,12 @@
+"""
+RF_pipeline.py — v2 version, the default since 18/11/2026. Uses the fixed v2
+functions (combined_analysis/reduce_all.py, stats/summary.py): RF maps stored in
+stimulus coordinates, outlines/sizes in true µm / mm². Writes noise_data_v2.nc.
+The original v1 script is kept in legacy/combined_analysis/RF_pipeline.py.
+
+organize/configs.py imports the same v2 functions, so a saved pipeline re-loaded
+with Analysis_Pipeline.load() also runs v2.
+"""
 from pathlib import Path
 from organize.configs import (
     Recording_Config,

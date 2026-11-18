@@ -12,6 +12,7 @@ from polarspike import Overview, quality_tests
 import polars as pl
 import pandas as pd
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -273,7 +274,7 @@ def clean_qi_output(qi_raw, stimulus_index):
 
 # %% Load RF metadata safely
 
-dataset = xr.load_dataset(rf_dataset_path)
+dataset = load_noise_data(rf_dataset_path)
 
 rf_cell_table_raw = (
     dataset[["tilt", "quality"]]

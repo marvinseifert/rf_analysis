@@ -1,21 +1,6 @@
-"""
-reduce_all_v2.py — fixed copy of reduce_all.py (2026-11-18). reduce_all.py is unchanged.
-
-Changes:
-  1. sta_2d_cov_collapse: RF maps (cm_most_important, rms) are pasted into the
-     final (y, x) grid with y indices on y and x indices on x. reduce_all.py swapped
-     them, so every stored map had x and y exchanged relative to the stimulus,
-     kernel.npy and dataset["positions"]. Now everything in noise_data.nc is in
-     STIMULUS coordinates (numpy 'upper': x = column, y = row, +y down).
-  2. fill_defaults: store shape matches its (x, y) labels (only matters for
-     non-square cut sizes).
-  3. circular_reduction: polar radius sampled in 1-px steps from 0 to half the cut,
-     so center/surround/in_out outlines are in true µm (were 1.41x too large).
-     Polar centre/reshape use the (y, x) storage order.
-  4. Uses loading/load_sta_v2.py (cutout variance map labelled with its real
-     (x, y) order).
-Use with stats/summary_v2.py (RF areas no longer multiplied by pixel_size²).
-"""
+# LEGACY (v1), kept for reference; moved here on 18/11/2026. Use combined_analysis/reduce_all.py (v2).
+# v1 stores RF maps with x and y swapped and outlines 1.41x too large.
+# Only change made when moving: imports point at the other legacy files.
 from __future__ import annotations
 
 from itertools import product
@@ -26,7 +11,7 @@ import xarray as xr
 from tqdm import tqdm
 
 from dim_reduction.circular_reduction import polar_transform
-from loading.load_sta_v2 import load_and_realign_center
+from legacy.loading.load_sta import load_and_realign_center
 from location.locate import locate_across_channels
 from location.x_array import x_y_and_scale
 from organize.decorators import depends_on
@@ -36,11 +21,6 @@ from dim_reduction.rms_error import calculate_rms
 from dim_reduction.covariance import calculate_covariance
 from pathlib import Path
 from scipy.interpolate import RegularGridInterpolator
-
-# Written to noise_data.nc attrs by the v2 pipeline / conversion. Means: rms and
-# cm_most_important are stored (y, x) in stimulus coordinates (x = column, y = row,
-# +y down), the same frame as kernel.npy, quality.nc and dataset["positions"].
-RF_MAP_FRAME = "stimulus_v2"
 
 
 def plot_sanity_fig(
@@ -218,8 +198,8 @@ def fill_defaults(  # noqa: F821  # noqa: F821
             (
                 nr_cells,
                 nr_channels,
-                common_image_size.loc["x"].item(),
                 common_image_size.loc["y"].item(),
+                common_image_size.loc["x"].item(),
             ),
             dtype=np.float32,
         ),
@@ -385,7 +365,7 @@ def sta_2d_cov_collapse(
         recording_config.root_path
         / recording_config.output_folder
         / analysis_folder
-        / "noise_data_v2.nc",
+        / "noise_data.nc",
         engine="netcdf4",
         # encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
     )
@@ -585,26 +565,22 @@ def sta_2d_cov_collapse(
 
             # create meshgrid for indexing
             y_grid, x_grid = np.ix_(y_indices, x_indices)
-            # ORIENTATION [DATA FIX] Place the cm_data at the correct coordinates.
-            # The final arrays are (cell, channel, y, x): y indices go on the y axis,
-            # x indices on the x axis. (Before 2026-11-18 these were swapped, which
-            # stored every map with x and y exchanged relative to the stimulus,
-            # kernel.npy and dataset["positions"].)
+            # Place the cm_data at the correct coordinates
             cm_final_array[
                 cell_idx,
                 channel_idx,
-                y_grid,
                 x_grid,
+                y_grid,
             ] = (
                 cm_most_important_store[cell_idx, channel_idx, :, :]
                 .transpose("y", "x")
                 .values
-            )
+            )  # need transpose because of numpy indexing being y x
             rms_final[
                 cell_idx,
                 channel_idx,
-                y_grid,
                 x_grid,
+                y_grid,
             ] = (
                 rms_store[cell_idx, channel_idx, :, :].transpose("y", "x").values
             )
@@ -636,9 +612,6 @@ def sta_2d_cov_collapse(
         sta_final_array,
     )
 
-    # v2: mark the coordinate frame so downstream code can check it.
-    ds.attrs["rf_map_frame"] = RF_MAP_FRAME
-
     print("Finished, saving dataset.")
 
     # Save the updated dataset
@@ -646,113 +619,10 @@ def sta_2d_cov_collapse(
         recording_config.root_path
         / recording_config.output_folder
         / analysis_folder
-        / "noise_data_v2.nc",
+        / "noise_data.nc",
         engine="netcdf4",
         # encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
     )
-
-
-def compute_circular_outlines(
-    ds: xr.Dataset,
-    channel_names: list[str],
-    threshold: float,
-    x_cut_size: int,
-    y_cut_size: int,
-    degree_bins: int,
-    min_pixel_size: float,
-) -> xr.Dataset:
-    """
-    Polar outlines of every cell's cm_most_important map (v2).
-
-    Pure calculation (no configs, no file I/O), used by the pipeline task below and
-    by combined_analysis/convert_noise_data_v2.py. Maps must be in stimulus
-    coordinates, stored (y, x). Adds center/surround/in_out outlines (µm) and the
-    placeholder center/surround std to ds and returns it.
-    """
-    n_cells, n_channels = ds.sizes["cell_index"], ds.sizes["channel"]
-    center_outline_store = xr.DataArray(
-        np.zeros((n_cells, int(360 / degree_bins), n_channels)),
-        dims=["cell_index", "degree", "channel"],
-        coords={
-            "cell_index": ds.cell_index.values,
-            "degree": np.arange(0, 360, degree_bins),
-            "channel": ds.channel.values,
-        },
-    )
-    surround_outline_store = xr.full_like(center_outline_store, 0)
-    # Sample the polar transform in 1-pixel radius steps, from the centre to the
-    # edge of the cutout (0 .. half cut size). The old code spread
-    # max_radius_px (~cut*sqrt(2)/2) bins over only half the cut, so each bin was
-    # ~0.71 px but was converted to µm as if it were 1 px -> radii 1.41x and
-    # areas ~2x too large.
-    max_radius = min(x_cut_size, y_cut_size) // 2 + 1
-    in_out_outline_store = xr.DataArray(
-        np.zeros((n_cells, max_radius, n_channels)),
-        dims=["cell_index", "radius", "channel"],
-        coords={
-            "cell_index": ds.cell_index.values,
-            "radius": np.arange(0, max_radius),
-            "channel": ds.channel.values,
-        },
-    )
-    std_template = xr.DataArray(
-        np.zeros((n_cells, n_channels)),
-        dims=["cell_index", "channel"],
-        coords={"cell_index": ds.cell_index.values, "channel": ds.channel.values},
-    )
-    # polar_transform unpacks center as (row, column) = (y, x)
-    center = (y_cut_size // 2, x_cut_size // 2)
-
-    with np.errstate(divide="ignore", invalid="ignore"):
-        for cell_index in ds.cell_index.values:
-            for channel in channel_names:
-                cell = ds.sel(cell_index=cell_index, channel=channel)
-                quality = cell.quality.item()
-                if np.isnan(quality) or quality < threshold:  # skip low quality
-                    continue
-                cm = cell.cm_most_important.values
-                cm_unpadded = cm[~np.isnan(cm)]
-                try:
-                    polar_cm = polar_transform(
-                        cm_unpadded.reshape(y_cut_size, x_cut_size),  # stored (y, x)
-                        center,
-                        max_radius=max_radius,
-                    )
-                except ValueError:
-                    print(f"Shape mismatch for cell {cell_index}, {channel}; skipped.")
-                    continue
-                entries = np.asarray(
-                    [
-                        np.mean(polar_cm[deg_step : deg_step + degree_bins, :], axis=0)
-                        for deg_step in range(0, 360, degree_bins)
-                    ]
-                )
-                entries_pos = np.clip(entries, 0, None)
-                entries_mean = (
-                    np.mean(entries_pos / np.max(entries_pos), axis=1)
-                    * entries_pos.shape[1]
-                )
-                entries_neg = np.clip(entries, None, 0)
-                entries_mean_neg = (
-                    np.mean(entries_neg / np.min(entries_neg), axis=1)
-                    * entries_neg.shape[1]
-                )
-                entries_mean[np.isnan(entries_mean)] = 0
-                entries_mean_neg[np.isnan(entries_mean_neg)] = 0
-
-                where = dict(cell_index=cell_index, channel=channel)
-                center_outline_store.loc[where] = entries_mean
-                surround_outline_store.loc[where] = entries_mean_neg
-                in_out_outline_store.loc[where] = np.mean(entries, axis=0)
-
-    ds["center_outline_um"] = center_outline_store * min_pixel_size
-    ds["surround_outline_um"] = surround_outline_store * min_pixel_size
-    ds["in_out_outline_um"] = in_out_outline_store.assign_coords(
-        radius=in_out_outline_store.radius.values * min_pixel_size
-    )
-    ds["center_std"] = std_template.copy()
-    ds["surround_std"] = std_template.copy()
-    return ds
 
 
 @depends_on("calculate_rf_quality")
@@ -763,28 +633,168 @@ def circular_reduction(
     circular_reduction_config: "Circular_Reduction_Config",
     analysis_folder: str,
 ):
-    path = (
+    ds = xr.load_dataset(
         recording_config.root_path
         / recording_config.output_folder
         / analysis_folder
-        / "noise_data_v2.nc"
+        / "noise_data.nc",
     )
-    ds = xr.load_dataset(path)
-    ds = compute_circular_outlines(
-        ds,
-        channel_names=recording_config.channel_names,
-        threshold=collapse_2d_config.threshold,
-        x_cut_size=int(
-            max(size.loc["x"].item() for size in collapse_2d_config.cut_size_px.values())
+
+    # %%
+
+    center_outline_store = xr.DataArray(
+        np.zeros(
+            (
+                ds.cell_index.shape[0],
+                int(360 / circular_reduction_config.degree_bins),
+                ds.channel.shape[0],
+            )
         ),
-        y_cut_size=int(
-            max(size.loc["y"].item() for size in collapse_2d_config.cut_size_px.values())
-        ),
-        degree_bins=circular_reduction_config.degree_bins,
-        min_pixel_size=min(
+        dims=["cell_index", "degree", "channel"],
+        coords={
+            "cell_index": ds.cell_index.values,
+            "degree": np.arange(0, 360, circular_reduction_config.degree_bins),
+            "channel": ds.channel.values,
+        },
+    )
+    surround_outline_store = xr.full_like(center_outline_store, 0)
+    max_radius = np.ceil(
+        np.max([radius.values for radius in collapse_2d_config.max_radius_px.values()])
+    ).astype(int)
+    x_cut_size = int(
+        np.max(
+            [size.loc["x"].item() for size in collapse_2d_config.cut_size_px.values()]
+        )
+    )
+    y_cut_size = int(
+        np.max(
+            [size.loc["y"].item() for size in collapse_2d_config.cut_size_px.values()]
+        )
+    )
+
+    in_out_outline_store = xr.DataArray(
+        np.zeros((ds.cell_index.shape[0], max_radius, ds.channel.shape[0])),
+        dims=["cell_index", "radius", "channel"],
+        coords={
+            "cell_index": ds.cell_index.values,
+            "radius": np.arange(0, max_radius),
+            "channel": ds.channel.values,
+        },
+    )
+    center_std = xr.DataArray(
+        np.zeros((ds.cell_index.shape[0], ds.channel.shape[0])),
+        dims=["cell_index", "channel"],
+        coords={
+            "cell_index": ds.cell_index.values,
+            "channel": ds.channel.values,
+        },
+    )
+    surround_std = xr.DataArray(
+        np.zeros((ds.cell_index.shape[0], ds.channel.shape[0])),
+        dims=["cell_index", "channel"],
+        coords={
+            "cell_index": ds.cell_index.values,
+            "channel": ds.channel.values,
+        },
+    )
+    channel_names = recording_config.channel_names
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for cell_position, cell_index in enumerate(ds.cell_index.values):
+            for channel in channel_names:
+                if np.isnan(ds.sel(cell_index=cell_index, channel=channel).quality):
+                    continue
+                if (  # Skip low quality cells
+                    ds.sel(cell_index=cell_index, channel=channel).quality
+                    < collapse_2d_config.threshold
+                ):
+                    continue
+
+                center = (
+                    x_cut_size // 2,
+                    y_cut_size // 2,
+                )
+                cm_most_important_unpadded = ds.sel(
+                    cell_index=cell_index, channel=channel
+                ).cm_most_important.values[
+                    ~np.isnan(
+                        ds.sel(
+                            cell_index=cell_index, channel=channel
+                        ).cm_most_important.values
+                    )
+                ]
+                try:
+                    polar_cm = polar_transform(
+                        cm_most_important_unpadded.reshape(
+                            x_cut_size,
+                            y_cut_size,
+                        ),
+                        center,
+                        max_radius=max_radius,
+                    )
+                except ValueError:
+                    print("Shape mismatch")
+                entries = []
+                for deg_step in range(0, 360, circular_reduction_config.degree_bins):
+                    entries.append(
+                        np.mean(
+                            polar_cm[
+                                deg_step : deg_step
+                                + circular_reduction_config.degree_bins,
+                                :,
+                            ],
+                            axis=0,
+                        )
+                    )
+                entries = np.asarray(entries)
+                entries_pos = entries.copy()
+                entries_pos[entries_pos < 0] = 0
+                entries_mean = (
+                    np.mean(entries_pos / np.max(entries_pos), axis=1)
+                    * entries_pos.shape[1]
+                )
+
+                entries_neg = entries.copy()
+                entries_neg[entries_neg > 0] = 0
+                entries_mean_neg = (
+                    np.mean(entries_neg / np.min(entries_neg), axis=1)
+                    * entries_neg.shape[1]
+                )
+                entries_mean[np.isnan(entries_mean)] = 0
+                entries_mean_neg[np.isnan(entries_mean_neg)] = 0
+
+                center_outline_store.loc[
+                    dict(cell_index=cell_index, channel=channel)
+                ] = entries_mean
+                surround_outline_store.loc[
+                    dict(cell_index=cell_index, channel=channel)
+                ] = entries_mean_neg
+                in_out_outline_store.loc[
+                    dict(cell_index=cell_index, channel=channel)
+                ] = np.mean(entries, axis=0)
+
+    min_pixel_size = np.min(
+        [
             recording_config.channel_configs[channel].pixel_size
             for channel in recording_config.channel_configs
-        ),
+        ]
     )
+    # %% Add results to the datastore
+    ds["center_outline_um"] = center_outline_store * min_pixel_size
+    ds["surround_outline_um"] = surround_outline_store * min_pixel_size
+    ds["in_out_outline_um"] = in_out_outline_store.assign_coords(
+        radius=in_out_outline_store.radius.values * min_pixel_size
+    )
+    ds["center_std"] = center_std
+    ds["surround_std"] = surround_std
+    # Save the updated dataset
     print("Finished circular reduction, saving dataset.")
-    ds.to_netcdf(path, engine="netcdf4")
+    ds.to_netcdf(
+        recording_config.root_path
+        / recording_config.output_folder
+        / analysis_folder
+        / "noise_data.nc",
+        engine="netcdf4",
+        # encoding={var: {"zlib": True, "complevel": 9} for var in ds.data_vars},
+    )
+
+    return

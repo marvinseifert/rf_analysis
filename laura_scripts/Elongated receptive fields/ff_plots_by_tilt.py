@@ -17,6 +17,7 @@ from bokeh.plotting import show
 import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
@@ -30,7 +31,7 @@ path_to_data = Path(
     r"F:\Laura\zebrafish_22_07_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
 
-dataset = xr.load_dataset(path_to_data)
+dataset = load_noise_data(path_to_data)
 
 # %% Make a per-cell RF metadata table
 

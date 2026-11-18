@@ -22,6 +22,7 @@ import imageio.v3 as iio
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 from matplotlib.transforms import Affine2D
 from pathlib import Path
 
@@ -77,7 +78,7 @@ if cones.ndim == 3 and cones.shape[2] == 4:
 # RFs of the top-N cells
 # ------------------------------------------------------------
 data_file = noise_data_file(args.recording)
-with xr.open_dataset(data_file) as ds:
+with load_noise_data(data_file, lazy=True) as ds:
     g.require_v2_rf_frame(ds)
     quality = ds.quality.sel(channel=args.channel).load()
     quality = quality.where(np.isfinite(quality), drop=True).sortby(quality, ascending=False)

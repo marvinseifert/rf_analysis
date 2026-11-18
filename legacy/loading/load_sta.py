@@ -1,3 +1,6 @@
+# LEGACY (v1), kept for reference; moved here on 18/11/2026. Use loading/load_sta.py (v2).
+# v1 stores RF maps with x and y swapped and outlines 1.41x too large.
+# Only change made when moving: imports point at the other legacy files.
 from __future__ import annotations
 from typing import Tuple
 from location.border import check_border_constrains
@@ -257,9 +260,8 @@ def load_and_realign_center(
             collapse_2d_config.extended_cut_size_px[channel],
         )
         var_coordinates = xr.DataArray(
-            # ORIENTATION [LABELS only] the data are (x, y); label them so. Data unchanged.
-            data=subset.var("time").transpose("x", "y").values,
-            dims=["x", "y"],
+            data=subset.var("time").values,
+            dims=["y", "x"],
             coords={"x": subset.coords["x"], "y": subset.coords["y"]},
         )
         return subset, c_x, c_y, var_coordinates

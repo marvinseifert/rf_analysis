@@ -18,7 +18,7 @@ Search the code for `ORIENTATION [` to find each place below. The tags mean:
 
 ## The steps, in order
 
-1. **RF maps are saved in the stimulus frame.** `[DATA FIX]` in `combined_analysis/reduce_all_v2.py` (new runs) and `combined_analysis/convert_noise_data_v2.py` (existing files → `noise_data_v2.nc`). The old `reduce_all.py` stored the maps with x and y swapped.
+1. **RF maps are saved in the stimulus frame.** `[DATA FIX]` in `combined_analysis/reduce_all.py` (v2; new runs) and `combined_analysis/convert_noise_data_v2.py` (existing files → `noise_data_v2.nc`). The old `reduce_all.py` stored the maps with x and y swapped.
 2. **The projected frame is built from your clicks.** `[FRAME DEFINITION]` in `alignment_geometry.py`: +y runs down along the clicked stimulus edge, +x is 90° clockwise of it, and the centre comes from the edge plus this recording's displayed width and height (saved in `…_alignment_cache_v2.npz`).
 3. **The cone image goes into the projected frame using the affine fitted to your 12 electrode clicks.** `[CONE IMAGE, fitted]` No fixed flip is added. The cone image must already be in the door view (Fiji: 90° clockwise, then up-down flip).
 4. **The one RF rotation, chosen by recording date.** `[RF ROTATION]` It depends on the stimulus software:

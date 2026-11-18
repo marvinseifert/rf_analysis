@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 from polarspike import Overview
 
 
@@ -1486,7 +1487,7 @@ class MovingBarSession:
 
         if dataset is None:
             print("No preloaded dataset supplied; loading NetCDF from disk...")
-            self.dataset = xr.load_dataset(cfg.noise_data_path)
+            self.dataset = load_noise_data(cfg.noise_data_path)
         else:
             print("Using the already-loaded NetCDF dataset.")
             self.dataset = dataset
@@ -1776,7 +1777,7 @@ try:
 except (NameError, AttributeError):
     pass
 
-dataset = xr.load_dataset(NOISE_DATA_PATH)
+dataset = load_noise_data(NOISE_DATA_PATH)
 
 print("Loaded NetCDF dataset")
 print("Dimensions:", dict(dataset.sizes))

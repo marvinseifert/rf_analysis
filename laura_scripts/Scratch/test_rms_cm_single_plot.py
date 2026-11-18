@@ -3,6 +3,7 @@
 #   * RF maps drawn y-down (yincrease=False): the stimulus file's own layout
 from pathlib import Path
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 import matplotlib.pyplot as plt
 import numpy as np
 from organize.configs import Recording_Config
@@ -35,7 +36,7 @@ def cutout_nans(data, inset=0):
 path_to_data = Path(
     r"F:\Laura\zebrafish_07_08_2026\Phase_00\noise_analysis\noise_data_v2.nc"
 )
-dataset_single = xr.load_dataset(path_to_data)
+dataset_single = load_noise_data(path_to_data)
 
 # %%
 channel = "32px_15Hz_20mins_shuffle_x4"

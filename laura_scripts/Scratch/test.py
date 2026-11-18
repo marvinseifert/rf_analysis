@@ -1,11 +1,12 @@
 # test.py — v2 version for v2 data (2026-11-18). The original (v1) is in laura_scripts/legacy/Scratch/test.py.
 #   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
 #   * RF maps drawn y-down (yincrease=False): the stimulus file's own layout
-#   * uses loading/load_sta_v2.py
+#   * uses loading/load_sta.py (v2)
 from pathlib import Path
 
 import numpy as np
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 import matplotlib.pyplot as plt
 from pathlib import Path
 import matplotlib.ticker as mticker
@@ -18,7 +19,7 @@ from organize.configs import (
 )
 
 from location.x_array import x_y_and_scale
-from loading.load_sta_v2 import load_and_realign_center
+from loading.load_sta import load_and_realign_center
 
 
 # %% ============================================================
@@ -50,7 +51,7 @@ noise_data_path = (
     rec_object.root_path / rec_object.output_folder / "noise_analysis" / "noise_data_v2.nc"
 )
 
-dataset = xr.load_dataset(noise_data_path)
+dataset = load_noise_data(noise_data_path)
 
 
 # %%

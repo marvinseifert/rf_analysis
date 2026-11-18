@@ -1,7 +1,7 @@
 # merged_stimuli_RFs.py — v2 version for v2 data (2026-11-18). The original (v1) is in laura_scripts/legacy/RF_analysis/merged_stimuli_RFs.py.
 #   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
 #   * combined maps labelled with their real (x, y) order; drawn y-down (stimulus-file layout)
-#   * uses loading/load_sta_v2.py
+#   * uses loading/load_sta.py (v2)
 # %% ============================================================
 # Combine two processed 12 px white-noise STA channels
 # using raw centred STA sums
@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
@@ -23,7 +24,7 @@ from organize.configs import (
 )
 
 from location.x_array import x_y_and_scale
-from loading.load_sta_v2 import load_and_realign_center
+from loading.load_sta import load_and_realign_center
 
 
 # %% ============================================================
@@ -69,7 +70,7 @@ noise_data_path = (
 
 print(f"Using dataset: {noise_data_path}")
 
-dataset = xr.load_dataset(noise_data_path)
+dataset = load_noise_data(noise_data_path)
 
 print("\nChannels found in noise_data_v2.nc:")
 for ch in dataset.channel.values:
@@ -310,7 +311,7 @@ def calculate_combined_sta_rfs(
     if alignment_target not in ["median_peak", "first_peak"]:
         raise ValueError("alignment_target must be 'median_peak' or 'first_peak'.")
 
-    ds = xr.load_dataset(noise_data_path)
+    ds = load_noise_data(noise_data_path)
 
     group_names = list(channel_groups.keys())
     target_time = ds["time_max"].values

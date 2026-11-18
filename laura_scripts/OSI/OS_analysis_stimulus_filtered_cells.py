@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 
 # %%
 # FOR MOVING_BAR and MOVING_BAR_TINY (existing stimuli), the stimulus may not cover
@@ -1110,7 +1111,7 @@ def analyse_one_dataset(
 
     # Use open_dataset, not load_dataset, to avoid loading huge RF maps for
     # every dataset into memory.
-    dataset = xr.open_dataset(noise_data_path)
+    dataset = load_noise_data(noise_data_path, lazy=True)
 
     try:
         check_rf_channel_exists(

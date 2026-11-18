@@ -6,6 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 
 # %% Dataset paths
 dataset_paths = {
@@ -49,7 +50,7 @@ CHANNELS_TO_LOAD = {
 
 datasets = {}
 for name, path in dataset_paths.items():
-    ds = xr.load_dataset(path)
+    ds = load_noise_data(path)
 
     print(f"\n{name}")
     print(ds["channel"].values)

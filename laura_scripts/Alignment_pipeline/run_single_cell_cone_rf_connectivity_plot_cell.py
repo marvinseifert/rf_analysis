@@ -20,6 +20,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import xarray as xr
+from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 
 import numpy as np
 
@@ -171,7 +172,7 @@ show_figures = True
 # CELL 2 — LOAD DATASET, CONE IMAGE AND ALIGNMENT — RUN ONCE
 # ============================================================================
 
-dataset = xr.load_dataset(path_to_data)
+dataset = load_noise_data(path_to_data)
 cone_image = load_image(image_1_cones_path)
 
 # v2: read, not typed.

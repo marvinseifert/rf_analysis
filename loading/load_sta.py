@@ -1,3 +1,8 @@
+"""
+loading/load_sta.py — v2 version, the default since 18/11/2026: the cutout variance
+map is labelled with its real (x, y) order. The original v1 file is kept in
+legacy/loading/load_sta.py.
+"""
 from __future__ import annotations
 from typing import Tuple
 from location.border import check_border_constrains
@@ -257,8 +262,9 @@ def load_and_realign_center(
             collapse_2d_config.extended_cut_size_px[channel],
         )
         var_coordinates = xr.DataArray(
-            data=subset.var("time").values,
-            dims=["y", "x"],
+            # ORIENTATION [LABELS only] the data are (x, y); label them so. Data unchanged.
+            data=subset.var("time").transpose("x", "y").values,
+            dims=["x", "y"],
             coords={"x": subset.coords["x"], "y": subset.coords["y"]},
         )
         return subset, c_x, c_y, var_coordinates
