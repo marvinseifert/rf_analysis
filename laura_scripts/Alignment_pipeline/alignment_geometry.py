@@ -12,9 +12,13 @@ PROJECTED frame  the stimulus as it lands on the MEA, viewed facing the MEA from
                  door: x = right, y = down, origin = displayed stimulus centre.
                  Image 3 (visual_stim_on_MEA.png) and the cone image are placed here.
 
-Stimulus -> projected: OpenGL flips the image up-down, then the projector rotates it
-90° anticlockwise, so (x, y) -> (-y, -x). Confirmed with the L-shaped noise
-(zebrafish_14_08_2026 Phase_01).
+Stimulus -> projected depends on the stimulus software, i.e. on the recording date:
+  * recordings before 8 October 2026: OpenGL flips the image up-down, then the
+    projector rotates it 90° anticlockwise: (x, y) -> (-y, -x). Confirmed with the
+    L-shaped noise (zebrafish_14_08_2026 Phase_01).
+  * recordings from 8 October 2026 (new fps_py software): only the 90° anticlockwise
+    rotation, no up-down flip: (x, y) -> (y, -x).
+stimulus_to_projection_for_recording() picks the right one from the recording name.
 """
 
 from __future__ import annotations
@@ -25,18 +29,71 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
-# 3x3 affine: stimulus (x, y) -> projected (-y, -x).
-# ORIENTATION [RF ROTATION] This is THE one rotation/flip applied to RFs in v2:
+# ORIENTATION [RF ROTATION] The rotation/flip applied to RFs in v2 (one per recording,
+# chosen by date, see stimulus_to_projection_for_recording):
+#
+# Recordings BEFORE 8 October 2026:
 #   stimulus (x, y) -> projected (-y, -x)
 #   = up-down flip (OpenGL) then 90° anticlockwise (projector), viewed from the door.
 #   Confirmed with the L-shaped noise (14_08_2026 Phase_01).
-STIMULUS_TO_PROJECTION = np.array(
+STIMULUS_TO_PROJECTION_BEFORE_2026_10_08 = np.array(
     [
         [0.0, -1.0, 0.0],
         [-1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
     ]
 )
+# Recordings FROM 8 October 2026 (fps_py; the GUI shows the numpy layout, no OpenGL flip):
+#   stimulus (x, y) -> projected (y, -x)
+#   = 90° anticlockwise (projector) only, viewed from the door.
+STIMULUS_TO_PROJECTION_FROM_2026_10_08 = np.array(
+    [
+        [0.0, 1.0, 0.0],
+        [-1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+)
+PROJECTION_CHANGE_DATE = "2026-10-08"  # first day of the new transform
+# Kept for older code: the pre-October transform.
+STIMULUS_TO_PROJECTION = STIMULUS_TO_PROJECTION_BEFORE_2026_10_08
+
+
+def recording_date_from_name(name) -> "datetime.date":
+    """Date of a recording from any name/path containing DD_MM_YYYY, e.g.
+    'zebrafish_15_10_2026_phase_00_alignment_cache_v2.npz' -> 2026-10-15."""
+    import datetime
+    import re
+
+    m = re.search(r"(\d{2})_(\d{2})_(\d{4})", str(name))
+    if m is None:
+        raise ValueError(
+            f"Cannot find a recording date (DD_MM_YYYY) in {name!r}; it is needed to choose "
+            "the stimulus -> projection transform (it changed on 8 October 2026)."
+        )
+    day, month, year = (int(v) for v in m.groups())
+    return datetime.date(year, month, day)
+
+
+def stimulus_to_projection_for_recording(name) -> tuple[np.ndarray, str]:
+    """
+    (3x3 transform, description) for the recording named in `name` (a recording name,
+    cache file name or path containing DD_MM_YYYY).
+    ORIENTATION [RF ROTATION]: before 8 Oct 2026 -> (x, y) -> (-y, -x);
+    from 8 Oct 2026 -> (x, y) -> (y, -x).
+    """
+    import datetime
+
+    date = recording_date_from_name(name)
+    if date >= datetime.date.fromisoformat(PROJECTION_CHANGE_DATE):
+        return (
+            STIMULUS_TO_PROJECTION_FROM_2026_10_08.copy(),
+            f"{date}: from 8 Oct 2026 (fps_py): 90° anticlockwise only, (x, y) -> (y, -x)",
+        )
+    return (
+        STIMULUS_TO_PROJECTION_BEFORE_2026_10_08.copy(),
+        f"{date}: before 8 Oct 2026: up-down flip + 90° anticlockwise, (x, y) -> (-y, -x)",
+    )
+
 
 # Value of noise_data.nc attrs["rf_map_frame"] written by reduce_all_v2.py and
 # combined_analysis/convert_noise_data_v2.py.
@@ -204,8 +261,9 @@ def load_alignment_geometry(
     Alignment_pipeline/RF_alignment.py). Arguments, if given, override them;
     they are required for older caches that do not contain them yet.
 
-    v2: A_raw_rf_to_projected_um = STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x),
-    and the displayed-stimulus centre is recomputed from the clicked edge with the
+    v2: A_raw_rf_to_projected_um is chosen by recording date (read from the cache
+    file name): before 8 Oct 2026 (x, y) -> (-y, -x); from 8 Oct 2026 (x, y) -> (y, -x).
+    The displayed-stimulus centre is recomputed from the clicked edge with the
     recording's displayed width/height. The scale calculation is unchanged. The
     cache stores the clicked stimulus edge as stim_edge_top_px /
     stim_edge_bottom_px, irrespective of whether LEFT or RIGHT was clicked.
@@ -348,8 +406,12 @@ def load_alignment_geometry(
     A_image1_to_projected_um = A_image3_to_projected_um @ tform_2_to_3_params
 
     # v2: RF maps are in stimulus coordinates; this places them in the projection.
-    # ORIENTATION [RF ROTATION] RFs (stimulus coords) -> projected: STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x).
-    A_raw_rf_to_projected_um = STIMULUS_TO_PROJECTION.copy()
+    # ORIENTATION [RF ROTATION] chosen by recording date (from the cache file name):
+    #   before 8 Oct 2026: (x, y) -> (-y, -x);  from 8 Oct 2026: (x, y) -> (y, -x).
+    A_raw_rf_to_projected_um, transform_description = stimulus_to_projection_for_recording(
+        cache_path.name
+    )
+    print(f"Stimulus -> projection: {transform_description}")
 
     origin_check = A_projected_um_to_image3 @ np.array([0.0, 0.0, 1.0])
 
@@ -363,7 +425,7 @@ def load_alignment_geometry(
         f"x = {visual_stim_center_px_image3[0]:.2f}, "
         f"y = {visual_stim_center_px_image3[1]:.2f}"
     )
-    print("Raw (stimulus) -> projected transform: (x, y) -> (-y, -x)")
+    print(f"Raw (stimulus) -> projected transform: {transform_description}")
     print(f"Stimulus edge used for clicks: {stimulus_edge_side.upper()}")
 
     # AlignmentGeometry still uses the historical field names stim_top_left_px /

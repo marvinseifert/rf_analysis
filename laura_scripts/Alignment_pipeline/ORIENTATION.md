@@ -21,7 +21,11 @@ Search the code for `ORIENTATION [` to find each place below. The tags mean:
 1. **RF maps are saved in the stimulus frame.** `[DATA FIX]` in `combined_analysis/reduce_all_v2.py` (new runs) and `combined_analysis/convert_noise_data_v2.py` (existing files → `noise_data_v2.nc`). The old `reduce_all.py` stored the maps with x and y swapped.
 2. **The projected frame is built from your clicks.** `[FRAME DEFINITION]` in `alignment_geometry.py`: +y runs down along the clicked stimulus edge, +x is 90° clockwise of it, and the centre comes from the edge plus this recording's displayed width and height (saved in `…_alignment_cache_v2.npz`).
 3. **The cone image goes into the projected frame using the affine fitted to your 12 electrode clicks.** `[CONE IMAGE, fitted]` No fixed flip is added. The cone image must already be in the door view (Fiji: 90° clockwise, then up-down flip).
-4. **The one RF rotation: stimulus (x, y) → projected (−y, −x).** `[RF ROTATION]` That is the OpenGL up-down flip followed by the projector's 90° anticlockwise rotation, viewed from the door. It's defined once (`STIMULUS_TO_PROJECTION` in `alignment_geometry.py`) and used by `RF_alignment.py`, the cone-connectivity functions, `extract_cone_regularity.py` and `summary_plot_single_cell.py`. The RF data are never flipped; they are placed through this transform.
+4. **The one RF rotation, chosen by recording date.** `[RF ROTATION]` It depends on the stimulus software:
+   - **Recordings before 8 October 2026:** stimulus (x, y) → projected (−y, −x). That's the OpenGL up-down flip followed by the projector's 90° anticlockwise rotation, viewed from the door. Confirmed with the L-shaped noise (14/08/2026).
+   - **Recordings from 8 October 2026 (`fps_py`):** stimulus (x, y) → projected (y, −x). That's the projector's 90° anticlockwise rotation only; the new software shows the stimulus in the numpy layout, with no OpenGL flip.
+
+   `stimulus_to_projection_for_recording()` in `alignment_geometry.py` picks the right one from the recording name (`DD_MM_YYYY`). It's used by `RF_alignment.py`, the cone-connectivity functions, `extract_cone_regularity.py` and `summary_plot_single_cell.py`. The RF data are never flipped; they are placed through this transform.
 
 That's all. Every other `ORIENTATION` tag is labels, axis order, display, or not about RFs.
 

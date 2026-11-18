@@ -9,7 +9,8 @@ Differences:
     loader): displayed size and dataset pixel size are read from the alignment
     cache unless given, and the stimulus centre is recomputed from the clicked edge.
   * RF centre: strongest pixel in stimulus coordinates, placed in the projection
-    with STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x). No left-right data flip.
+    with the recording's stimulus -> projection transform (date-dependent: before
+    8 Oct 2026 (x, y) -> (-y, -x); from 8 Oct 2026 (x, y) -> (y, -x)). No data flip.
   * Autocorrelation: the centre exclusion follows the SHAPE of the central peak
     (connected positive region around zero shift) instead of a fixed 20 px disc,
     and peaks touching the excluded region are rejected. The fixed 4.9 µm disc let
@@ -36,7 +37,6 @@ from skimage import exposure, feature, filters
 from tqdm import tqdm
 
 from laura_scripts.Alignment_pipeline.alignment_geometry import (
-    STIMULUS_TO_PROJECTION,
     dataset_um_per_px,
     load_alignment_geometry,
     require_v2_rf_frame,
@@ -154,6 +154,8 @@ def _load_alignment_geometry(config: ConeRegularityConfig) -> dict:
     linear = A_image1_to_projected_um[:2, :2]
     return {
         "rf_scale_factor": float(geometry.rf_scale_factor),
+        # date-dependent stimulus -> projection transform (see alignment_geometry)
+        "A_raw_rf_to_projected_um": geometry.A_raw_rf_to_projected_um,
         "corrected_stim_um_per_px": float(geometry.corrected_stim_um_per_px),
         "A_image1_to_projected_um": A_image1_to_projected_um,
         "A_projected_um_to_image1": np.linalg.inv(A_image1_to_projected_um),
@@ -167,6 +169,7 @@ def _rf_centre_projected_um(
     cell_index: int,
     config: ConeRegularityConfig,
     rf_scale_factor: float,
+    A_raw_rf_to_projected_um: np.ndarray,
 ) -> tuple[float, float]:
     """
     Centre of the cell's RF in projected-stimulus µm (the frame the cone image
@@ -174,8 +177,9 @@ def _rf_centre_projected_um(
 
         1. Select config.rf_variable / config.rf_channel / the cell.
         2. Strongest pixel (|value| for signed covariance) in STIMULUS coordinates.
-        3. Scale by rf_scale_factor and place in the projection with
-           STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x).
+        3. Scale by rf_scale_factor and place in the projection with the
+           recording's stimulus -> projection transform (date-dependent: before
+           8 Oct 2026 (x, y) -> (-y, -x); from 8 Oct 2026 (x, y) -> (y, -x)).
     """
     if config.rf_variable not in dataset:
         raise KeyError(
@@ -205,9 +209,10 @@ def _rf_centre_projected_um(
             float(da["y"].isel(y=peak_y_i).item()) * rf_scale_factor,
         ]
     )
-    # ORIENTATION [RF ROTATION] RF peak (stimulus coords) -> projected: (x, y) -> (-y, -x).
+    # ORIENTATION [RF ROTATION] RF peak (stimulus coords) -> projected with the recording's
+    # date-dependent transform (before 8 Oct 2026 (x, y) -> (-y, -x); from 8 Oct (y, -x)).
     projected_x_um, projected_y_um = _transform_points(
-        STIMULUS_TO_PROJECTION, stimulus_xy[None, :]
+        A_raw_rf_to_projected_um, stimulus_xy[None, :]
     )[0]
     return float(projected_x_um), float(projected_y_um)
 
@@ -624,7 +629,7 @@ def calculate_cone_regularity_features(
     For each cell:
         1. Select the same RF map/channel used by the alignment script.
         2. Find the strongest RF pixel (stimulus coordinates).
-        3. Scale it and place it in the projection with STIMULUS_TO_PROJECTION
+        3. Scale it and place it in the projection with the recording's (date-dependent) transform
            (v2 alignment; no data flip).
         5. Use the cached cone alignment to sample a physical square centred
            on that RF centre.
@@ -688,6 +693,7 @@ def calculate_cone_regularity_features(
             cell_index=cell_index,
             config=config,
             rf_scale_factor=(alignment["rf_scale_factor"]),
+            A_raw_rf_to_projected_um=alignment["A_raw_rf_to_projected_um"],
         )
 
         row = {

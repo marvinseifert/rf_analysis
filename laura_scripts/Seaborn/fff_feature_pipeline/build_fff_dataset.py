@@ -2,7 +2,7 @@
 # The original (v1) is in laura_scripts/legacy/Seaborn/fff_feature_pipeline/build_fff_dataset.py;
 # its outputs (fff_features.csv / fff_data.nc) are left unchanged.
 #   * cone regularity uses the v2 extract_cone_regularity.py (RF maps in stimulus
-#     coordinates + one STIMULUS_TO_PROJECTION transform + recomputed centre)
+#     coordinates + the date-dependent stimulus -> projection transform + recomputed centre)
 #   * reads noise_analysis/noise_data_v2.nc (convert_noise_data_v2.py)
 #   * writes fff_features_v2.csv / fff_data_v2.nc. The first run starts from the
 #     existing fff_features.csv / fff_data.nc, so the other feature blocks are kept.

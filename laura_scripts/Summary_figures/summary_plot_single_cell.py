@@ -4,7 +4,8 @@
 #   * alignment geometry from alignment_geometry.load_alignment_geometry (shared):
 #     stimulus sizes / pixel size read from the alignment cache unless set in
 #     RFConfig, stimulus centre recomputed from the clicked edge
-#   * RF orientation: one transform, STIMULUS_TO_PROJECTION (x, y) -> (-y, -x);
+#   * RF orientation: one transform per recording, chosen by date (before 8 Oct 2026
+#     (x, y) -> (-y, -x); from 8 Oct 2026 (x, y) -> (y, -x));
 #     no left-right data flip
 #   * clipping to the displayed stimulus is done in projected coordinates
 #   Note: moving-bar directions on the polar panels are in the stimulus file's
@@ -152,7 +153,7 @@ class RFConfig:
     displayed_stim_width_px: int | None = None
     displayed_stim_height_px: int | None = None
     # v2: RF maps are in stimulus coordinates and are placed in the projection by
-    # STIMULUS_TO_PROJECTION (shared alignment_geometry.py); no data flip.
+    # the recording's date-dependent transform (shared alignment_geometry.py); no data flip.
     clip_rf_to_displayed_stimulus: bool = True
     normalise_rf: bool = True
     rf_alpha: float = 0.5

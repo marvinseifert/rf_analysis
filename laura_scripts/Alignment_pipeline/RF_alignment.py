@@ -2,9 +2,11 @@
 #   * Needs a v2 noise_data file (noise_data_v2.nc from
 #     combined_analysis/convert_noise_data_v2.py, or a new run of RF_pipeline_v2.py).
 #     Its RF maps are in STIMULUS coordinates, like kernel.npy and positions.
-#   * Orientation is ONE transform, not a data flip: A_raw_rf_to_projected_um =
-#     STIMULUS_TO_PROJECTION, i.e. (x, y) -> (-y, -x) (OpenGL up-down flip, then
-#     projector 90° anticlockwise; confirmed with the L-shaped noise). The old
+#   * Orientation is ONE transform per recording, not a data flip, chosen by date in
+#     alignment_geometry.stimulus_to_projection_for_recording():
+#       before 8 Oct 2026: (x, y) -> (-y, -x) (OpenGL up-down flip, then projector 90°
+#         anticlockwise; confirmed with the L-shaped noise);
+#       from 8 Oct 2026 (fps_py): (x, y) -> (y, -x) (90° anticlockwise only). The old
 #     left-right flip came from an L test plotted with xarray, which draws y UP.
 #   * The single-cell marker from dataset["positions"] goes through the same transform.
 #   * Stimulus raw/displayed size is set once per recording (top of CELL 1) and the
@@ -1110,7 +1112,7 @@ population_tilt_threshold = 0.75
 # ------------------------------------------------------------
 # RF spatial orientation
 # ------------------------------------------------------------
-# v2: orientation is the fixed STIMULUS_TO_PROJECTION transform
+# v2: orientation is the recording's date-dependent stimulus -> projection transform
 # (alignment_geometry.py). There is intentionally no orientation option.
 
 # ------------------------------------------------------------
@@ -1154,7 +1156,8 @@ clip_rf_to_displayed_stimulus = True
 draw_raw_stimulus_boundary = False  # yellow square = full raw 800×800
 draw_displayed_stimulus_boundary = False  # magenta rectangle = displayed 800×800
 
-# v2: raw RF (stimulus) -> projected is ALWAYS STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x).
+# v2: raw RF (stimulus) -> projected is chosen by recording date (before 8 Oct 2026
+# (x, y) -> (-y, -x); from 8 Oct 2026 (x, y) -> (y, -x)), see alignment_geometry.
 
 # v2: dataset_assumed_um_per_px is set once per recording at the top of CELL 1.
 
@@ -1281,7 +1284,7 @@ print(
     f"x = {visual_stim_center_px_image3[0]:.2f}, "
     f"y = {visual_stim_center_px_image3[1]:.2f}"
 )
-print("Raw (stimulus) -> projected transform: (x, y) -> (-y, -x)")
+print("Raw (stimulus) -> projected transform: chosen by recording date (see above)")
 print(f"Stimulus edge used for clicks: {stimulus_edge_side.upper()}")
 
 # ------------------------------------------------------------
@@ -1297,7 +1300,7 @@ print("Variable:", rf_variable_name)
 print("Original dims:", combined.dims)
 print("Original shape:", combined.shape)
 
-print("v2: RF maps in stimulus coordinates; placed via STIMULUS_TO_PROJECTION.")
+print("v2: RF maps in stimulus coordinates; placed via the date-dependent stimulus -> projection transform (see alignment_geometry).")
 # ------------------------------------------------------------
 # Get quality and tilt values, if present
 # ------------------------------------------------------------
@@ -2341,7 +2344,7 @@ ax.tick_params(axis="both", labelsize=9)
 # ------------------------------------------------------------
 # Title, legend, colourbar
 # ------------------------------------------------------------
-xy_label = "v2: stimulus -> projection (x, y) -> (-y, -x)"
+xy_label = "v2: stimulus -> projection, date-dependent transform"
 norm_label = (
     "per-cell normalised" if normalise_each_cell else "no per-cell normalisation"
 )

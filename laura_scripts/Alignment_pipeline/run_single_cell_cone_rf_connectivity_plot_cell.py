@@ -89,8 +89,9 @@ normalise_each_cell = True
 # the displayed stimulus size from this recording's v2 alignment cache (CELL 2).
 clip_rf_to_displayed_stimulus = True
 
-# ORIENTATION: RFs are placed with the single STIMULUS_TO_PROJECTION transform,
-# (x, y) -> (-y, -x), inside the helper functions. No data flips.
+# ORIENTATION: RFs are placed with the recording's stimulus -> projection transform,
+# chosen by date (before 8 Oct 2026 (x, y) -> (-y, -x); from 8 Oct 2026 (x, y) -> (y, -x)),
+# inside the helper functions. No data flips.
 
 
 # -----------------------------------------------------------------------------

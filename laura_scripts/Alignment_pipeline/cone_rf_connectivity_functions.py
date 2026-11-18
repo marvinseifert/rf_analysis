@@ -12,7 +12,8 @@ All final positions are represented in the alignment pipeline's
 
 The RF coordinate scale follows the RF alignment script. v2: needs a v2
 noise_data file (RF maps in STIMULUS coordinates, like kernel.npy and positions);
-orientation is the single STIMULUS_TO_PROJECTION transform, (x, y) -> (-y, -x),
+orientation is ONE stimulus -> projection transform per recording (chosen by date:
+before 8 Oct 2026 (x, y) -> (-y, -x); from 8 Oct 2026 (x, y) -> (y, -x)),
 from alignment_geometry.py. No data is flipped.
 """
 
@@ -343,7 +344,8 @@ def _select_optional_scalar(
 #   - corrected scale from cached clicked stimulus edge
 #   - projected x=right, y=down, origin=displayed stimulus centre
 #   - RF maps in stimulus coordinates (v2 noise_data)
-#   - v2: raw RF -> projected = STIMULUS_TO_PROJECTION, (x, y) -> (-y, -x); no data flips
+#   - v2: raw RF -> projected = date-dependent transform (before 8 Oct 2026 (x, y) -> (-y, -x);
+#     from 8 Oct 2026 (x, y) -> (y, -x)); no data flips
 #
 
 
@@ -406,7 +408,7 @@ def extract_single_cell_rf_matching_rf_alignment(
     # ORIENTATION [RF ROTATION] RF data are NOT flipped here; they are placed/sampled through
     #   geometry.A_raw_rf_to_projected_um = stimulus (x, y) -> projected (-y, -x).
     require_v2_rf_frame(dataset)
-    print("v2: RF map in stimulus coordinates; placed via STIMULUS_TO_PROJECTION.")
+    print("v2: RF map in stimulus coordinates; placed via geometry.A_raw_rf_to_projected_um (date-dependent).")
 
     if "cell_index" in combined.dims:
         available_cells = combined["cell_index"].values
