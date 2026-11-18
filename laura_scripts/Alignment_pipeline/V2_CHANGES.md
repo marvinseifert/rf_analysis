@@ -36,7 +36,8 @@ Starting from the old cone-alignment work, we found that the RF maps in every `n
 | | `stats/summary.py` | RF size, tilt, angle, TIR, centre shift (fix 5) (v1: `legacy/…`) |
 | | `loading/noise_data.py` | `load_noise_data()`: the one way to open RF data; always `noise_data_v2.nc`, checked |
 | | `organize/configs.py` | Imports the v2 functions, so a re-loaded saved pipeline also runs v2 |
-| | `combined_analysis/convert_noise_data_v2.py`, `convert_all_noise_data_v2.sh` | Convert an existing `noise_data.nc` → `noise_data_v2.nc` |
+| | `combined_analysis/convert_noise_data_v2.py`, `convert_all_noise_data_v2.sh` | Convert an existing `noise_data.nc` → `noise_data_v2.nc` (`--pixel-size 2.0` rescales a 2.5 µm recording) |
+| | `combined_analysis/relabel_pixel_size_settings.py` | Change a recording's stimulus pixel size in its settings files (e.g. 2.5 → 2.0 µm), backing each file up as `…_orig_2.5um.json` first |
 | Marvin's plots | `combined_analysis/combined_plotting_v2.py`, `clustering_pipeline_v2.py` | v2 copies: read v2 data, maps drawn +y down, polar plots clockwise (originals unchanged) |
 | Alignment | `laura_scripts/Alignment_pipeline/alignment_geometry.py` | **Shared rules**: the one RF rotation, the geometry loader, stimulus sizes from `noise_params.json` / the v2 cache, the displayed-size check box, the v2 file check |
 | | `…/Alignment_pipeline/RF_alignment.py`, `alignment_recordings.py` | Interactive alignment (clicks, overlays); per-recording settings |
@@ -63,22 +64,23 @@ Starting from the old cone-alignment work, we found that the RF maps in every `n
 
 ### Not changed on purpose
 - `combined_analysis/clustering_pipeline.py` and `combined_plotting.py` (Marvin's) still read the old `noise_data.nc`.
-- `organize/configs.py` (shared): its task registry still points at `reduce_all_old.py`, see section 7.
 
 ## 4. Data on the NAS
 
 | File(s) | Where | Status |
 |---|---|---|
-| `noise_data_v2.nc` | Next to every `noise_data.nc`: 07/08, 14/05, 15/05, 22/07, 14/08 (`noise_analysis` and `noise_analysis_QI10`) and 14/08 Phase_01 L-shaped. 11 files, ~74 GB. | Done; each checked (frame marker, `quality`/`positions`/STA unchanged, size-verified). |
+| `noise_data_v2.nc` | Next to **every** `noise_data.nc` on the NAS (all `noise_analysis*` folders of all 25 recordings, 05/11/2025 to 22/10/2026): 56 files, ~367 GB. | Done (last batch 18/11/2026, 19:41–20:48, no errors). The first 11 files (07/08, 14/05, 15/05, 22/07, 14/08) were checked in detail (frame marker, `quality`/`positions`/STA unchanged, size-verified); the rest were made by the same converter. |
 | `…_alignment_cache_v2.npz` | `alignment_videos/` of 07/08, 14/05, 15/05, 22/07, 14/08 | Same electrode and stimulus-edge clicks as the original cache, plus raw size, displayed size and stimulus pixel size. Originals untouched. |
 | `fff_features_v2.csv`, `fff_data_v2.nc` | `fff_analysis/` of 14/05, 15/05, 22/07, 14/08 (07/08 has no `fff_analysis`) | Other features copied from the old tables; cone features recalculated with fixes 2, 3 and 6. |
-| Pixel size 2.5 → 2.0 µm (14/05, 15/05) | `noise_params.json` (5 channel folders), `recording_config.json` and `collapse_2d_config.json` (`noise_analysis` and `QI10`), v2 caches | Done. Every edited file has an `…_orig_2.5um` backup next to it. In `collapse_2d_config.json` only `cut_size_um` changed (800 → 640); the cutout in pixels is unchanged. |
-| `noise_data_v2.nc` rescaled to 2.0 µm (14/05, 15/05) | x/y grid and outline radii, `tir` and centre shift × 0.8; areas × 0.64; maps, `positions`, `quality`, `tilt`, `angle` unchanged. Marked with `stimulus_pixel_size_um = 2.0`. | Done for both recordings (`noise_analysis` and `QI10`); each checked and size-verified. |
-| Old files | `noise_data.nc`, `fff_data.nc`, old caches, old figures | Untouched. The old 14/05 and 15/05 `noise_data.nc` are still labelled at 2.5 µm. |
+| Pixel size 2.5 → 2.0 µm | Rule: every recording from 20/04/2026 uses 2.0 µm. Relabelled: 21/04, 22/04, 23/04, 24/04, 30/04, 07/05, 13/05, 14/05, 15/05 (2026). Files: `noise_params.json` (each noise channel folder), `recording_config.json` and `collapse_2d_config.json` (`noise_analysis` and `QI10`), v2 caches | Done. Every edited file has an `…_orig_2.5um` backup next to it. In `collapse_2d_config.json` only `cut_size_um` changed (× 0.8, e.g. 800 → 640); the cutout in pixels is unchanged. 12/08, 13/08, 15/10 and 22/10 were already at 2.0 µm. Recordings before 20/04/2026 keep 4 µm. |
+| `noise_data_v2.nc` rescaled to 2.0 µm (the nine recordings above) | x/y grid and outline radii, `tir` and centre shift × 0.8; areas × 0.64; maps, `positions`, `quality`, `tilt`, `angle` unchanged. Marked with `stimulus_pixel_size_um = 2.0`. | Done for all nine (`noise_analysis` and `QI10`); 14/05 and 15/05 checked and size-verified. |
+| Old files | `noise_data.nc`, `fff_data.nc`, old caches, old figures | Untouched. The old `noise_data.nc` of the nine relabelled recordings are still labelled at 2.5 µm. |
 
 ## 5. How to use v2
 
 **Existing recordings** (already converted): point scripts at `noise_data_v2.nc` and `…_alignment_cache_v2.npz`. Stimulus sizes and pixel size are read automatically.
+
+**A recording analysed with the wrong pixel size** (e.g. 2.5 µm instead of 2.0): `poetry run python -m combined_analysis.relabel_pixel_size_settings zebrafish_DD_MM_YYYY --old 2.5 --new 2.0`, then `combined_analysis/convert_all_noise_data_v2.sh zebrafish_DD_MM_YYYY 2.0`. Add `--dry-run` to the first command to see what it would change.
 
 **A new recording:**
 1. Run `combined_analysis/RF_pipeline.py` (v2). It writes `noise_analysis/noise_data_v2.nc`, never `noise_data.nc`, so it can't overwrite an original even if run on an existing recording.
@@ -104,6 +106,7 @@ Starting from the old cone-alignment work, we found that the RF maps in every `n
 3. **`organize/configs.py`:** the step-order check in `Analysis_Pipeline.run()` never runs (typo in `getattr`). (Re-loading a saved pipeline now runs v2, since `configs.py` imports the v2 functions.)
 4. **`RF_pipeline.py` (v2) not yet run end to end** (needs Windows). Compare its first output with that recording's `noise_data_v2.nc`.
 5. **polarspike extractors** may skip or duplicate `cell_index` values (`linspace`); check if RF and spike cell numbers ever disagree.
-6. **Moving-bar directions** use their own compass convention, not the projected frame. Convert before comparing with RF `angle` or elongation.
+6. **Moving-bar directions** use their own compass convention, not the projected frame. Convert before comparing with RF `angle` or elongation. The direction tables in `moving_edge_analysis.py`, `OS_analysis.py` and `OS_analysis_stimulus_filtered_cells.py` are only right for recordings before 8/10/2026; from 8/10/2026 (new OpenGL stimulus) left↔right and the diagonals are mirrored. Affects 15/10 Phase_00 and 22/10 Phase_00/01. Not fixed yet.
 7. **Limits:** square RF cutouts only; one pixel size per recording; `center_std` / `surround_std` are placeholders (0); cone-regularity settings are in pixels (right for the current microscope, ~0.24 µm/px).
 8. **07/08 cone image:** only an unprocessed MAX projection in Box; you're checking whether a door-view version exists.
+9. **30/04 alignment:** has `noise_data_v2.nc` now but only a v1 alignment cache; needs v2 electrode and stimulus-edge clicks.
