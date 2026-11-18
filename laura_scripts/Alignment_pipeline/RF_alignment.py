@@ -47,46 +47,29 @@ from laura_scripts.Alignment_pipeline.alignment_geometry import (
 
 
 # ------------------------------------------------------------
-# RECORDING-SPECIFIC PATHS — edit these once per recording
+# RECORDING — v2: choose the recording here; its paths and settings are in
+# alignment_recordings.py (add an entry there for a new recording).
 # ------------------------------------------------------------
-recording_name = "zebrafish_15_05_2026_phase_00"
+recording = "07_05_2026"
 
-# RF dataset
-path_to_data = Path(
-    r"F:\Laura\zebrafish_15_05_2026\Phase_00\noise_analysis\noise_data_v2.nc"
-)
+from laura_scripts.Alignment_pipeline.alignment_recordings import settings_for
 
-# Image 1: cone mosaic, same microscope coordinate space as Image 2
-image_1_cones_path = Path(
-    r"C:\Users\Laura Steel\Box\SUSSEX\Experiments\Zebrafish\Experiments\Imaging\20260515_dragonfly_microscope\15_05_2026_cones.jpg"
-)
+_rec = settings_for(recording)
+recording_name = _rec["recording_name"]
+path_to_data = _rec["path_to_data"]                      # noise_data_v2.nc
+image_1_cones_path = _rec["cone_image"]                  # door-view (flipped) cones
+image_2_electrodes_retina_path = _rec["electrode_image"] # same pixel grid as the cones
+image_3_visual_stim_path = _rec["image_3_visual_stim_path"]
+alignment_cache_path = _rec["alignment_cache_path"]      # …_alignment_cache_v2.npz
 
-# Image 2: MEA electrodes with retina on top, same microscope coordinate space as Image 1
-image_2_electrodes_retina_path = Path(
-    r"C:\Users\Laura Steel\Box\SUSSEX\Experiments\Zebrafish\Experiments\Imaging\20260515_dragonfly_microscope\AVG_Sample Prefix_2026-05-15_Lsteel_mCherry_18.08.13_Laura Steel_FusionStitcher.jpg"
-)
-
-# Image 3: projected visual stimulus on empty MEA
-image_3_visual_stim_path = Path(
-    r"F:\Laura\zebrafish_15_05_2026\alignment_videos\visual_stim_on_MEA.png"
-)
-
-# Optional: create Image 3 from the alignment video before loading it.
-# Set to False if image_3_visual_stim_path already exists and is correct.
-create_visual_stim_image_from_video = False
-video_path = Path(
-    r"F:\Laura\zebrafish_15_05_2026\alignment_videos\WIN_20260515_09_55_39_Pro.mp4"
-)
-video_crop_values = (100, 700, 200, 700)  # y1, y2, x1, x2
+# Image 3 is made from the projection video if visual_stim_on_MEA.png does not exist yet.
+create_visual_stim_image_from_video = not image_3_visual_stim_path.exists()
+video_path = _rec["video_path"]
+video_crop_values = _rec["video_crop"]  # y1, y2, x1, x2
 video_scale_factor = 2
 video_rotation_angle = 0  # positive = anticlockwise
 video_start_prop = 0.0
 video_end_prop = 1.0
-
-# Alignment cache: stores electrode clicks, transform, and stimulus-edge clicks.
-alignment_cache_path = Path(
-    rf"F:\Laura\zebrafish_15_05_2026\alignment_videos\{recording_name}_alignment_cache_v2.npz"
-)
 
 # v2: show Image 3 with the displayed-stimulus box implied by the displayed size.
 # The box must sit exactly on the lit stimulus; if not, the displayed size is wrong.
@@ -99,18 +82,17 @@ redo_stimulus_clicks = False
 # Choose which vertical edge of the projected visual stimulus to click:
 #   "left"  = click top-left, then bottom-left
 #   "right" = click top-right, then bottom-right
-stimulus_edge_to_click = "left"
+stimulus_edge_to_click = _rec["stimulus_edge_to_click"]
 
 # v2: per-recording stimulus geometry. Nothing is hard-coded:
 #   * dataset pixel size  -> noise_pixel_size in the channels' noise_params.json
 #                            (checked against the RF file's x grid)
 #   * raw stimulus size   -> x_len / y_len in noise_params.json
 #   * displayed size      -> read from this recording's v2 alignment cache.
-#     It is a projector setting, so it cannot be calculated. Leave None; set it
-#     ONLY for a NEW recording (stimulus px, e.g. 800 x 800 or 800 x 1000) and
-#     check it against the lit area in Image 3. It is then saved in the cache.
-displayed_stim_width_px = None
-displayed_stim_height_px = None
+#     It is a projector setting, so it cannot be calculated: it is set per
+#     recording in alignment_recordings.py (displayed_size) and checked with the
+#     red box on Image 3. It is then also saved in the cache.
+displayed_stim_width_px, displayed_stim_height_px = _rec["displayed_size"]
 
 n_electrode_points = 12
 transform_type = "affine"
@@ -1036,7 +1018,7 @@ print("You can now edit/run CELL 2 and CELL 3 repeatedly without reloading data.
 # channel_to_plot = "32px_15Hz_20mins_shuffle_x4"
 # channel_to_plot = "8px_15Hz_35mins_shuffle_x8"
 # channel_to_plot = "6px_15Hz_30mins_shuffle_x6"
-channel_to_plot = "12px_20Hz_25mins_shuffle_white"
+channel_to_plot = _rec["channel_to_plot"]  # from alignment_recordings.py
 
 # Choose: "rms" or "cm_most_important"
 rf_dataset_to_plot = "rms"

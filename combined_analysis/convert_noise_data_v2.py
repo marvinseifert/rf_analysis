@@ -87,7 +87,14 @@ def swap_map_axes(ds: xr.Dataset) -> xr.Dataset:
     return ds
 
 
-def convert(folder: Path, output: Path | None = None) -> Path:
+def convert(folder: Path, output: Path | None = None, pixel_size_um: float | None = None) -> Path:
+    """
+    pixel_size_um: stimulus pixel size (µm) for the v2 file. Default: the
+    recording's pixel size from recording_config.json. If it differs from the
+    pixel size the original file was built with (read from its x grid), all µm
+    values are relabelled exactly (x/y grid, outlines, sizes); the maps
+    themselves are in stimulus pixels and do not change.
+    """
     folder = Path(folder)
     source = folder / "noise_data.nc"
     output = Path(output) if output else folder / "noise_data_v2.nc"
@@ -101,6 +108,18 @@ def convert(folder: Path, output: Path | None = None) -> Path:
         raise ValueError(f"{source} is already in the v2 frame.")
 
     ds = swap_map_axes(ds)
+
+    # Stimulus pixel size: the one the file was built with (its x grid spacing) and
+    # the one wanted for v2. A difference is an exact relabelling of µm values.
+    built_with = float(np.round(np.median(np.abs(np.diff(ds["x"].values))), 6))
+    wanted = float(pixel_size_um) if pixel_size_um is not None else settings["min_pixel_size"]
+    if not np.isclose(built_with, wanted):
+        factor = wanted / built_with
+        print(f"Relabelling stimulus pixel size {built_with} -> {wanted} µm (x {factor:.4f})")
+        ds = ds.assign_coords(x=ds["x"] * factor, y=ds["y"] * factor)
+        ds.attrs["rescaled_pixel_size_from_um"] = built_with
+    ds.attrs["stimulus_pixel_size_um"] = wanted
+
     ds = ds.drop_vars([v for v in OUTLINE_VARIABLES if v in ds] + ["radius"], errors="ignore")
     ds = compute_circular_outlines(
         ds,
@@ -109,7 +128,7 @@ def convert(folder: Path, output: Path | None = None) -> Path:
         x_cut_size=settings["x_cut_size"],
         y_cut_size=settings["y_cut_size"],
         degree_bins=settings["degree_bins"],
-        min_pixel_size=settings["min_pixel_size"],
+        min_pixel_size=wanted,
     )
     ds = compute_rf_stats(ds, settings["channel_names"])
     ds.attrs["rf_map_frame"] = RF_MAP_FRAME
@@ -124,5 +143,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("folder", type=Path, help="noise_analysis folder")
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--pixel-size", type=float, default=None,
+                        help="stimulus pixel size in µm for the v2 file (default: recording_config.json)")
     args = parser.parse_args()
-    convert(args.folder, args.output)
+    convert(args.folder, args.output, args.pixel_size)
