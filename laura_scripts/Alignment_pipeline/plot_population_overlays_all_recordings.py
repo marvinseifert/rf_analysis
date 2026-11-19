@@ -45,7 +45,8 @@ Image.MAX_IMAGE_PIXELS = None
 OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_alignment_v2")
 
 # (recording DD_MM_YYYY, channel). Rule used on 18/11/2026: 32px if there is one,
-# otherwise 12px, white if there is a choice. 30/04/2026 left out (v1 cache only).
+# otherwise 12px, white if there is a choice. 30/04/2026 left out (19/11/2026): it has v2
+# clicks, but its only noise channel is 4px (8 µm pixels), too fine to show RFs this way.
 RECORDINGS = [
     ("07_05_2026", "12px_20Hz_20mins_shuffle_x12_white"),
     ("14_05_2026", "12px_20Hz_25mins_shuffle_x12"),

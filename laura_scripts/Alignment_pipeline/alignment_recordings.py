@@ -29,6 +29,26 @@ NAS_LAURA = Path("/mnt/mea_nas/Laura")
 BOX_IMAGING = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging")
 
 RECORDINGS = {
+    # 30/04: v2 clicks done 19/11/2026, but left out of the figures: its only noise
+    # channel is 4px (8 µm pixels), too fine to show RFs on the cone mosaic this way.
+    # The clicks only cover a strip on the right (no electrodes visible elsewhere).
+    "30_04_2026": dict(
+        phase="Phase_00",
+        noise_folder=NAS_LAURA / "zebrafish_30_04_2026/Phase_00/noise_analysis",
+        cone_image=BOX_IMAGING / "20260430_dragonfly_microscope/30_04_2026_p0_cones_flipped.jpg",
+        electrode_image=BOX_IMAGING / "20260430_dragonfly_microscope/30_04_2026_p0_electrodes_flipped.jpg",
+        alignment_folder=NAS_LAURA / "zebrafish_30_04_2026/30_04_2026_alignment_videos",
+        # visual_stim_on_MEA.png already exists (made 8 Oct 2026), so the video is not
+        # used; the crop is only needed if that image is ever remade.
+        video="WIN_20260430_09_26_58_Pro.mp4",
+        video_crop=None,
+        # Lit area on visual_stim_on_MEA.png is ~0.82 as wide as tall -> 800 x 1000
+        # (same window as 07/05, 14/05, 15/05). Stimulus file 1000 x 1000.
+        displayed_size=(800, 1000),
+        channel_to_plot="4px_20Hz_15mins_shuffle_white",  # stimulus index 4
+        # The v1 clicks used the right edge (the left edge of the lit area is blurred).
+        stimulus_edge_to_click="right",
+    ),
     "07_05_2026": dict(
         phase="Phase_00",
         noise_folder=NAS_LAURA / "zebrafish_07_05_2026/Phase_00/noise_analysis",
