@@ -13,7 +13,7 @@ from polarspike import Overview
 # %% Loading receptive fields
 
 # Load dataset
-root = Path(r"F:\Laura\zebrafish_02_12_2025\Phase_01\4px_20Hz_40mins_shuffle_idx_4")
+root = Path(r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/4px_20Hz_40mins_shuffle_idx_4")
 # Load quality file
 quality = np.load(root / "quality.npy")
 
@@ -26,7 +26,7 @@ top_cells = list(quality[top_cells_idx, 1].astype(int))
 
 # %% Loading spikes
 # Import dataset as recording
-recording = Overview.Recording.load(r"F:\Laura\zebrafish_02_12_2025\Phase_01\overview")
+recording = Overview.Recording.load(r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/overview")
 # Set scf stimulus number
 stimulus = 1
 # Import all top qi cells for stimulus

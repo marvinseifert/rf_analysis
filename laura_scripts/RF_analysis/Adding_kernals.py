@@ -7,14 +7,14 @@ from tqdm import tqdm
 
 # Load folder paths for each channel
 path_a = Path(
-    r"F:\Laura\zebrafish_15_05_2026\Phase_00\12px_20Hz_25mins_shuffle_x12_white_idx_15"
+    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/12px_20Hz_25mins_shuffle_x12_white_idx_15"
 )
 path_b = Path(
-    r"F:\Laura\zebrafish_15_05_2026\Phase_00\12px_20Hz_25mins_shuffle_x12_repeat_white_idx_19"
+    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/12px_20Hz_25mins_shuffle_x12_repeat_white_idx_19"
 )
 
 # Create output path
-output_path = Path(r"F:\Laura\zebrafish_15_05_2026\Phase_00\combined_kernels")
+output_path = Path(r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/combined_kernels")
 output_path.mkdir(
     parents=True, exist_ok=True
 )  # make new path and folder if not already there

@@ -13,6 +13,7 @@ import pandas as pd
 import polars as pl
 import xarray as xr
 from loading.noise_data import load_noise_data  # v2 RF dataset, checked
+from loading.polarspike_triggers import pad_to_repeats
 from polarspike import Overview
 
 from laura_scripts.Alignment_pipeline.alignment_geometry import (
@@ -1551,6 +1552,10 @@ class MovingBarSession:
 
         print("Loading Polarspike recording overview...")
         self.recording = Overview.Recording.load(str(cfg.overview_path))
+        # Moving bars/edges are always played expected_repeats times; add any missing
+        # end triggers so polarspike sees whole repeats (in memory only).
+        for condition in cfg.conditions:
+            pad_to_repeats(self.recording, condition.stimulus_index, condition.expected_repeats)
 
         self.reference_channel = resolve_reference_channel(
             dataset=self.dataset,
@@ -1880,7 +1885,7 @@ class MovingBarSession:
 
 # %% 1. Load the large NetCDF dataset once
 NOISE_DATA_PATH = Path(
-    r"F:\Laura\zebrafish_14_08_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 )
 
 try:
@@ -1904,13 +1909,13 @@ if "channel" in dataset.coords:
 
 
 # %% 2. Edit paths, stimulus indices and plotting parameters
-STIMULUS_DIR = Path(r"F:\Laura\stimuli\stimuli_July_2026")
+STIMULUS_DIR = Path(r"/mnt/mea_nas/Laura/stimuli/stimuli_July_2026")
 
 config = PlotConfig(
     recording_name="zebrafish_14_08_2026_phase_00",
-    overview_path=Path(r"F:\Laura\zebrafish_14_08_2026\Phase_00\overview"),
+    overview_path=Path(r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00/overview"),
     noise_data_path=NOISE_DATA_PATH,
-    output_dir=Path(r"F:\Laura\zebrafish_14_08_2026\Phase_00\moving_bar_summary_plots"),
+    output_dir=Path(r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00/moving_bar_summary_plots"),
     # Supply ANY subset of 1-4 conditions in the order you want them plotted.
     # For the full set, recommended order is:
     #   1. ON  13 fps
@@ -1922,7 +1927,7 @@ config = PlotConfig(
             title="ON moving bar — 13 fps — 20 px",
             stimulus_index=15,  # CHANGE
             h5_path=STIMULUS_DIR
-            / "F:\Laura\stimuli\stimuli_July_2026\moving_bar_weighted_13fps_ON_800px_wide_800px_high_20px_thick_30.0px_ramp_1.0px_per_frame.h5",
+            / "/mnt/mea_nas/Laura/stimuli/stimuli_July_2026/moving_bar_weighted_13fps_ON_800px_wide_800px_high_20px_thick_30.0px_ramp_1.0px_per_frame.h5",
             expected_repeats=3,  # CHANGE if needed
             expected_polarity="ON",
             expected_frame_rate_hz=13,
@@ -1933,7 +1938,7 @@ config = PlotConfig(
             title="OFF moving bar — 13 fps — 20 px",
             stimulus_index=16,  # CHANGE
             h5_path=STIMULUS_DIR
-            / "F:\Laura\stimuli\stimuli_July_2026\moving_edge_weighted_13fps_OFF_800px_wide_800px_high__20px_thick_30.0px_ramp_1.0px_per_frame.h5",
+            / "/mnt/mea_nas/Laura/stimuli/stimuli_July_2026/moving_edge_weighted_13fps_OFF_800px_wide_800px_high__20px_thick_30.0px_ramp_1.0px_per_frame.h5",
             expected_repeats=3,  # CHANGE if needed
             expected_polarity="OFF",
             expected_frame_rate_hz=13,

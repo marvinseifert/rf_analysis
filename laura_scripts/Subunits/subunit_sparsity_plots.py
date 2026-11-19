@@ -12,7 +12,7 @@ import math
 
 # %% Set parameters
 data_root = Path(
-    r"F:\Laura\zebrafish_15_01_2026\Phase_00\4px_20Hz_40mins_shuffle_idx_12"
+    r"/mnt/mea_nas/Laura/zebrafish_15_01_2026/Phase_00/4px_20Hz_40mins_shuffle_idx_12"
 )
 
 cell_idx = 21

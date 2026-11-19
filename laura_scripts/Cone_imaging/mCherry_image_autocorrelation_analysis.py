@@ -22,7 +22,7 @@ matplotlib.use("TkAgg")
 
 # %% Set parameters
 folder_path = Path(
-    r"C:\Users\Laura Steel\Box\SUSSEX\Experiments\Zebrafish MEA + imaging\20260514_dragonfly_microscope"
+    r"/home/laura/Box/SUSSEX/Experiments/Zebrafish MEA + imaging/20260514_dragonfly_microscope"
 )
 
 # image_path = folder_path / "electrodes_tiff.tif"

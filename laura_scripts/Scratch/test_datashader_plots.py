@@ -10,7 +10,7 @@ from organize.configs import Recording_Config
 
 # Load the data
 path_to_data = Path(
-    r"F:\Laura\zebrafish_19_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_19_02_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 )
 
 dataset = load_noise_data(path_to_data)

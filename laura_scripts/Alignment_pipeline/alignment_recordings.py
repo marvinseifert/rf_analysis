@@ -64,7 +64,8 @@ RECORDINGS = {
     ),
     "15_10_2026": dict(
         phase="Phase_00",
-        noise_folder=NAS_LAURA / "zebrafish_15_10_2026/Phase_00/noise_analysis",
+        # Folder renamed on the NAS on 19/11/2026: noise_analysis -> noise_analysis_QI10.
+        noise_folder=NAS_LAURA / "zebrafish_15_10_2026/Phase_00/noise_analysis_QI10",
         cone_image=BOX_IMAGING / "20261015_dragonfly_microscope/15_10_2026_p0_cones_flipped.jpg",
         electrode_image=BOX_IMAGING / "20261015_dragonfly_microscope/15_10_2026_p0_electrodes_flipped.jpg",
         alignment_folder=NAS_LAURA / "zebrafish_15_10_2026/15_10_2026_alignment_videos",

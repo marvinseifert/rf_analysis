@@ -16,6 +16,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from laura_scripts.Alignment_pipeline.alignment_geometry import moving_bar_direction_table
+from loading.polarspike_triggers import pad_to_repeats
 
 from fff_common import (
     get_cell_stimulus_spikes,
@@ -490,6 +491,10 @@ def calculate_moving_edge_features(
         return pd.DataFrame()
 
     recording = Overview.Recording.load(overview_path)
+    # Moving edges are always played expected_repeats times; add any missing end
+    # triggers so polarspike sees whole repeats (in memory only).
+    for condition in conditions:
+        pad_to_repeats(recording, condition.stimulus_index, condition.expected_repeats)
     condition_tables = []
 
     for condition in conditions:

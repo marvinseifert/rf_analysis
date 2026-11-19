@@ -1,5 +1,5 @@
 # Receptive field functions
-# N/B. dataset input is in form of e.g. dataset = r"F:\Laura\zebrafish_02_12_2025\Phase_01\4px_20Hz_40mins_shuffle_idx_4"
+# N/B. dataset input is in form of e.g. dataset = r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/4px_20Hz_40mins_shuffle_idx_4"
 
 # %% Function to plot a multipanel figure of each top QI (>20) cell's receptive field, calculated using mean squared error method
 
@@ -198,7 +198,7 @@ def plot_contour_mosaic_old(dataset, intensity_threshold, pixel_dimensions):
 
 
 def plot_top_cells_overlay_old(dataset, number_of_overlaps):
-    # dataset is e.g.r"F:\Laura\zebrafish_02_12_2025\Phase_01\4px_20Hz_40mins_shuffle_idx_4"
+    # dataset is e.g.r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/4px_20Hz_40mins_shuffle_idx_4"
     # number of overlaps is how many cells you want to overlay
 
     # Import dependencies

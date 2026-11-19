@@ -27,7 +27,7 @@ from loading.load_sta import load_and_realign_center
 # ============================================================
 
 rec_object = Recording_Config(
-    root_path=Path(r"F:\Laura\zebrafish_15_05_2026\Phase_00"),
+    root_path=Path(r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00"),
 )
 
 rec_object.add_channel(
@@ -270,7 +270,7 @@ def plot_individual_vs_combined_rms_from_kernel(
 
 # %%
 combined_kernel_path = Path(
-    r"F:\Laura\zebrafish_15_05_2026\Phase_00\combined_kernels_idx_20"
+    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/combined_kernels_idx_20"
 )
 
 plot_individual_vs_combined_rms_from_kernel(

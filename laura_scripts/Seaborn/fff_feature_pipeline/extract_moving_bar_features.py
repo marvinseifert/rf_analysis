@@ -14,6 +14,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from loading.polarspike_triggers import pad_to_repeats
 from laura_scripts.Alignment_pipeline.alignment_geometry import (
     moving_bar_direction_names,
     moving_bar_directions_deg,
@@ -320,6 +321,13 @@ def calculate_moving_bar_features(
     **config_overrides,
 ) -> pd.DataFrame:
     recording = Overview.Recording.load(overview_path)
+    # The moving bar is always played expected_repeats (10) times; add any missing end
+    # triggers so polarspike sees whole repeats (in memory only).
+    pad_to_repeats(
+        recording,
+        int(stimulus_id),
+        int(config_overrides.get("expected_repeats", MovingBarFeatureConfig.expected_repeats)),
+    )
     # ORIENTATION [MOVING BAR DIRECTIONS] direction of each block for this recording's date
     # (changed 8 Oct 2026), unless direction_names / directions_deg are passed explicitly.
     if "direction_names" not in config_overrides:

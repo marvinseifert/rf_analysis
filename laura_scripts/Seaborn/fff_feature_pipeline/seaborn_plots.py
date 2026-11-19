@@ -39,22 +39,22 @@ sns.set_theme(
 RECORDINGS = [
     {
         "recording_id": "14_08_2026",
-        "root_path": Path(r"F:\Laura\zebrafish_14_08_2026\Phase_00"),
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00"),
         "rf_channel": "32px_15Hz_20mins_shuffle_x4",
     },
     {
         "recording_id": "22_07_2026",
-        "root_path": Path(r"F:\Laura\zebrafish_22_07_2026\Phase_00"),
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00"),
         "rf_channel": "32px_15Hz_20mins_shuffle_x4",
     },
     {
         "recording_id": "15_05_2026",
-        "root_path": Path(r"F:\Laura\zebrafish_15_05_2026\Phase_00"),
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00"),
         "rf_channel": "12px_20Hz_25mins_shuffle_white",
     },
     {
         "recording_id": "14_05_2026",
-        "root_path": Path(r"F:\Laura\zebrafish_14_05_2026\Phase_00"),
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_14_05_2026/Phase_00"),
         "rf_channel": "12px_20Hz_25mins_shuffle_x12",
     },
 ]

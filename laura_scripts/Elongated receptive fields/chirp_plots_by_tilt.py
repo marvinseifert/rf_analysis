@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 
 # %% User settings
 
-phase_path = Path(r"F:\Laura\zebrafish_22_07_2026\Phase_00")
+phase_path = Path(r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00")
 
 rf_dataset_path = phase_path / "noise_analysis" / "noise_data_v2.nc"
 spikes_path = phase_path / "alldata.parquet"
@@ -28,7 +28,7 @@ overview_path = phase_path / "overview"
 chirp_stimulus_index = 2
 
 cell_thresholds_path = Path(
-    r"C:\Users\Laura Steel\PycharmProjects\polarspike\cell_thresholds.npy"
+    r"/home/laura/PycharmProjects/polarspike/cell_thresholds.npy"
 )
 
 # Chirp parameters

@@ -492,7 +492,7 @@ from location.x_array import x_y_and_scale
 
 
 rec_object = Recording_Config(
-    root_path=Path(r"F:\Laura\zebrafish_26_02_2026\Phase_00"),
+    root_path=Path(r"/mnt/mea_nas/Laura/zebrafish_26_02_2026/Phase_00"),
 )
 
 rec_object.add_channel(

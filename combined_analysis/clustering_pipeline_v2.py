@@ -57,18 +57,18 @@ for_clustering = [
 # %% Data inputs
 # We can load datasets from several different recordings.
 path_to_data = [
-    # Path(r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc"),
-    Path(r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data_v2.nc"),
-    Path(r"F:\Laura\zebrafish_15_01_2026\Phase_00\noise_analysis\noise_data_v2.nc"),
-    # Path(r"F:\Laura\zebrafish_19_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"),
-    Path(r"F:\Laura\zebrafish_25_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"),
-    Path(r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"),
-    # Path(r"F:\Laura\zebrafish_05_03_2026\Phase_00\noise_analysis\noise_data_v2.nc"),
+    # Path(r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/noise_data_v2.nc"),
+    Path(r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/noise_analysis/noise_data_v2.nc"),
+    Path(r"/mnt/mea_nas/Laura/zebrafish_15_01_2026/Phase_00/noise_analysis/noise_data_v2.nc"),
+    # Path(r"/mnt/mea_nas/Laura/zebrafish_19_02_2026/Phase_00/noise_analysis/noise_data_v2.nc"),
+    Path(r"/mnt/mea_nas/Laura/zebrafish_25_02_2026/Phase_00/noise_analysis/noise_data_v2.nc"),
+    Path(r"/mnt/mea_nas/Laura/zebrafish_26_02_2026/Phase_00/noise_analysis/noise_data_v2.nc"),
+    # Path(r"/mnt/mea_nas/Laura/zebrafish_05_03_2026/Phase_00/noise_analysis/noise_data_v2.nc"),
 ]
 
 # %% Output parameters
 # save_path = Path(r"/media/mawa/New Volume/cluster_all/test")
-save_path = Path(r"F:\Laura\combined_cluster_analysis_2.0_12px_&_4px")
+save_path = Path(r"/mnt/mea_nas/Laura/combined_cluster_analysis_2.0_12px_&_4px")
 warnings.warn(
     f"Warning, all figures existing in {save_path} will be removed when running the next cell!"
 )

@@ -28,7 +28,7 @@ import matplotlib
 # %% First, load the RF dataset
 
 path_to_data = Path(
-    r"F:\Laura\zebrafish_22_07_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 )
 
 dataset = load_noise_data(path_to_data)
@@ -56,10 +56,10 @@ print(rf_cell_table.head())
 # %% Import and process Polarspike data
 
 spikes_on_disk = pl.scan_parquet(
-    r"F:\Laura\zebrafish_15_01_2026\Phase_00\alldata.parquet"
+    r"/mnt/mea_nas/Laura/zebrafish_15_01_2026/Phase_00/alldata.parquet"
 )
 
-recording = Overview.Recording.load(r"F:\Laura\zebrafish_15_01_2026\Phase_00\overview")
+recording = Overview.Recording.load(r"/mnt/mea_nas/Laura/zebrafish_15_01_2026/Phase_00/overview")
 
 # Select just the first full-field / SCF stimulus
 spikes = recording.get_spikes_triggered([{"stimulus_index": [0]}])

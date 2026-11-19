@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 
 # %% Load .h5 recording file (exported using MCS Data Manager)
 recording_file = Path(
-    r"F:\Laura\MEA_electrode_alignment\2026-03-06T14-43-35McsRecording.h5"
+    r"/mnt/mea_nas/Laura/MEA_electrode_alignment/2026-03-06T14-43-35McsRecording.h5"
 )
 
 # %% Electrode selection:

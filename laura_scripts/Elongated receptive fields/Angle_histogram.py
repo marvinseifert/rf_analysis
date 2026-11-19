@@ -11,28 +11,28 @@ from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 # %% Dataset paths
 dataset_paths = {
     # "dataset_1": Path(
-    #     r"F:\Laura\zebrafish_05_11_2025\Phase_00\noise_analysis\noise_data_v2.nc"
+    #     r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_00/noise_analysis/noise_data_v2.nc"
     # ),
     "dataset_2": Path(
-        r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc"
+        r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/noise_data_v2.nc"
     ),
     "dataset_3": Path(
-        r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data_v2.nc"
+        r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/noise_analysis/noise_data_v2.nc"
     ),
     # "dataset_4": Path(
-    #     r"F:\Laura\zebrafish_18_12_2025\Phase_00\noise_analysis\noise_data_v2.nc"
+    #     r"/mnt/mea_nas/Laura/zebrafish_18_12_2025/Phase_00/noise_analysis/noise_data_v2.nc"
     # ),
     "dataset_5": Path(
-        r"F:\Laura\zebrafish_15_01_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+        r"/mnt/mea_nas/Laura/zebrafish_15_01_2026/Phase_00/noise_analysis/noise_data_v2.nc"
     ),
     "dataset_6": Path(
-        r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+        r"/mnt/mea_nas/Laura/zebrafish_26_02_2026/Phase_00/noise_analysis/noise_data_v2.nc"
     ),
     # "dataset_7": Path(
-    #     r"F:\Laura\zebrafish_13_05_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    #     r"/mnt/mea_nas/Laura/zebrafish_13_05_2026/Phase_00/noise_analysis/noise_data_v2.nc"
     # ),
     # "dataset_8": Path(
-    #     r"F:\Laura\zebrafish_14_05_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    #     r"/mnt/mea_nas/Laura/zebrafish_14_05_2026/Phase_00/noise_analysis/noise_data_v2.nc"
     # ),
 }
 
@@ -533,7 +533,7 @@ plot_multipanel_histograms(
 # # %%
 # # Load dataset(s)
 # path_to_data = Path(
-#     r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc"
+#     r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/noise_data_v2.nc"
 # )
 # ds = xr.load_dataset(path_to_data)
 # # %%

@@ -10,7 +10,7 @@ import pandas as pd
 
 # Load dataset(s)
 path_to_data = Path(
-    r"F:\Laura\zebrafish_15_05_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 )
 dataset = load_noise_data(path_to_data)
 

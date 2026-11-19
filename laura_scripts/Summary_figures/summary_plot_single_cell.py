@@ -2207,6 +2207,18 @@ class CellPlotSession:
 
         print("Loading Polarspike recording overview...")
         self.recording = Overview.Recording.load(str(cfg.overview_path))
+        # polarspike needs whole repeats (changes in memory only). The moving bar is
+        # always played cfg.os.expected_repeats (10) times, so missing end triggers are
+        # added; for the other stimuli an incomplete last repeat is dropped.
+        from loading.polarspike_triggers import drop_incomplete_repeats, pad_to_repeats
+
+        pad_to_repeats(self.recording, cfg.os.stimulus_index, cfg.os.expected_repeats)
+        for stimulus_index in {
+            cfg.scf.stimulus_index,
+            cfg.csteps.stimulus_index,
+            cfg.chirp.stimulus_index,
+        } - {cfg.os.stimulus_index}:
+            drop_incomplete_repeats(self.recording, stimulus_index)
 
         # These objects depend on configuration but not on rereading the NetCDF.
         self.alignment: AlignmentState
@@ -2816,7 +2828,7 @@ class CellPlotSession:
 # path itself changes or when you explicitly want a fresh disk read.
 
 NOISE_DATA_PATH = Path(
-    r"F:\Laura\zebrafish_22_07_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 )
 
 # During interactive work, close an older dataset before replacing it to avoid
@@ -2838,16 +2850,16 @@ describe_loaded_dataset(dataset)
 
 config = PlotConfig(
     recording_name="zebrafish_22_07_2026_phase_00",
-    overview_path=Path(r"F:\Laura\zebrafish_22_07_2026\Phase_00\overview"),
+    overview_path=Path(r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00/overview"),
     noise_data_path=NOISE_DATA_PATH,
     cone_image_path=Path(
-        r"C:\Users\Laura Steel\Box\SUSSEX\Experiments\Zebrafish\Experiments\Imaging\20260722_dragonfly_microscope\cones(MAX_FLIPPED)_2026_07_22.jpg"
+        r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260722_dragonfly_microscope/cones(MAX_FLIPPED)_2026_07_22.jpg"
     ),
     alignment_cache_path=Path(
-        r"F:\Laura\zebrafish_22_07_2026\alignment_videos\zebrafish_22_07_2026_phase_00_alignment_cache_v2.npz"
+        r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/alignment_videos/zebrafish_22_07_2026_phase_00_alignment_cache_v2.npz"
     ),
     # v2 figures go to their own folder, so the old ones are not overwritten.
-    output_dir=Path(r"F:\Laura\zebrafish_22_07_2026\Phase_00\separate_cell_plots_v2"),
+    output_dir=Path(r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00/separate_cell_plots_v2"),
     rf=RFConfig(
         # This is the reference channel for STA, quality, tilt and ranking.
         # It does not restrict RF plotting: every channel in rf_variable is shown.

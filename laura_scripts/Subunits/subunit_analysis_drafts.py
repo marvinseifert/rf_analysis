@@ -30,7 +30,7 @@ n_cluster_samples = 5
 
 # Load data
 data_root = Path(
-    r"F:\Laura\zebrafish_02_12_2025\Phase_01\4px_20Hz_40mins_shuffle_idx_4"
+    r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/4px_20Hz_40mins_shuffle_idx_4"
 )
 
 # Select cells to process
@@ -116,7 +116,7 @@ for cell_idx in cells:
 # import matplotlib.pyplot as plt
 #
 # # Set parameters
-# root = Path(r"F:\Laura\zebrafish_02_12_2025\Phase_01\4px_20Hz_40mins_shuffle_idx_4")
+# root = Path(r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/4px_20Hz_40mins_shuffle_idx_4")
 # quality = np.load(root / "quality.npy")
 # cell_labels = np.load(root / "cell_labels.npy", allow_pickle=True)  # cell IDs + labels
 #

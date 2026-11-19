@@ -31,10 +31,10 @@ def cutout_nans(data, inset=0):
 # %%
 # Load the data
 # path_to_data = Path(
-#     r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc"
+#     r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/noise_data_v2.nc"
 # )
 path_to_data = Path(
-    r"F:\Laura\zebrafish_07_08_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_07_08_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 )
 dataset_single = load_noise_data(path_to_data)
 

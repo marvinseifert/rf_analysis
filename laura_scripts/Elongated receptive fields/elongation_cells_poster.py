@@ -32,22 +32,22 @@ import matplotlib.ticker as mticker
 # LOAD DATASETS
 # ------------------------------------------------------------
 path_phase0 = Path(
-    r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/noise_data_v2.nc"
 )
 
 path_phase1 = Path(
-    r"F:\Laura\zebrafish_15_01_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_15_01_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 )
 
 path_phase2 = Path(
-    r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_26_02_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 )
 dataset_phase0 = load_noise_data(path_phase0)
 dataset_phase1 = load_noise_data(path_phase1)
 dataset_phase2 = load_noise_data(path_phase2)
 # %%
 path_phase3 = Path(
-    r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/noise_analysis/noise_data_v2.nc"
 )
 dataset_phase3 = load_noise_data(path_phase3)
 datasets = [dataset_phase0, dataset_phase1, dataset_phase2, dataset_phase3]

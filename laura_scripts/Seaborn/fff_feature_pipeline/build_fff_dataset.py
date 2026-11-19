@@ -38,7 +38,7 @@ from fff_common import all_cell_indices
 # 1. RECORDING PATHS
 # =============================================================================
 
-RECORDING_ROOT = Path(r"F:\Laura\zebrafish_14_08_2026\Phase_00")
+RECORDING_ROOT = Path(r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00")
 
 OVERVIEW_PATH = RECORDING_ROOT / "overview"
 
@@ -148,7 +148,7 @@ MOVING_EDGE_CONDITIONS = (
         output_name="on_13fps",
         stimulus_index=15,
         h5_path=Path(
-            r"F:\Laura\stimuli\stimuli_July_2026\moving_edge_weighted_13fps_ON_800px_wide_800px_high_20px_thick_30.0px_ramp_1.0px_per_frame.h5"
+            r"/mnt/mea_nas/Laura/stimuli/stimuli_July_2026/moving_edge_weighted_13fps_ON_800px_wide_800px_high_20px_thick_30.0px_ramp_1.0px_per_frame.h5"
         ),
         expected_repeats=3,
         expected_polarity="ON",
@@ -161,7 +161,7 @@ MOVING_EDGE_CONDITIONS = (
         output_name="off_13fps",
         stimulus_index=16,
         h5_path=Path(
-            r"F:\Laura\stimuli\stimuli_July_2026\moving_edge_weighted_13fps_OFF_800px_wide_800px_high_20px_thick_30.0px_ramp_1.0px_per_frame.h5"
+            r"/mnt/mea_nas/Laura/stimuli/stimuli_July_2026/moving_edge_weighted_13fps_OFF_800px_wide_800px_high_20px_thick_30.0px_ramp_1.0px_per_frame.h5"
         ),
         expected_repeats=3,
         expected_polarity="OFF",
@@ -214,17 +214,17 @@ MOVING_EDGE_CONDITIONS = (
 
 
 CONE_IMAGE_PATH = Path(
-    r"C:\Users\Laura Steel\Box\SUSSEX\Experiments"
-    r"\Zebrafish\Experiments\Imaging"
-    r"\20260814_dragonfly_microscope"
-    r"\14_08_2026_cones.jpg"
+    r"/home/laura/Box/SUSSEX/Experiments"
+    r"/Zebrafish/Experiments/Imaging"
+    r"/20260814_dragonfly_microscope"
+    r"/14_08_2026_cones.jpg"
 )
 
 
 ALIGNMENT_CACHE_PATH = Path(
-    r"F:\Laura\zebrafish_14_08_2026"
-    r"\alignment_videos"
-    r"\zebrafish_14_08_2026_phase_00_alignment_cache_v2.npz"
+    r"/mnt/mea_nas/Laura/zebrafish_14_08_2026"
+    r"/alignment_videos"
+    r"/zebrafish_14_08_2026_phase_00_alignment_cache_v2.npz"
 )
 
 

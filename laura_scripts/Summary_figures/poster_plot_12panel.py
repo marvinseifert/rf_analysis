@@ -111,7 +111,7 @@ def add_scale_bar(ax, length_um=20, height_offset=0.05, pad=0.05, lw=2):
 # =============================================================================
 
 path_to_data = Path(
-    r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+    r"/mnt/mea_nas/Laura/zebrafish_26_02_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 )
 
 dataset = load_noise_data(path_to_data)

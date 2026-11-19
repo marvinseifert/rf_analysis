@@ -4,7 +4,7 @@
 
 
 def plot_top_cells_overlay_snmf_old(dataset, number_of_overlaps):
-    # dataset is e.g.r"F:\Laura\zebrafish_02_12_2025\Phase_01\4px_20Hz_40mins_shuffle_idx_4"
+    # dataset is e.g.r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/4px_20Hz_40mins_shuffle_idx_4"
     # number of overlaps is how many cells you want to overlay
 
     # Import dependencies
@@ -180,7 +180,7 @@ def plot_top_cells_overlay_snmf_old(dataset, number_of_overlaps):
 
 
 def plot_single_cell_overlays_snmf_old(dataset, main_cell_id, number_of_overlays=2):
-    # dataset is e.g.r"F:\Laura\zebrafish_02_12_2025\Phase_01\4px_20Hz_40mins_shuffle_idx_4"
+    # dataset is e.g.r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/4px_20Hz_40mins_shuffle_idx_4"
     # main cell id is the main cell you want to plot, should be one of the top QI > 20 cells
     # number of overlaps is how many cells you want to overlay
 
@@ -353,7 +353,7 @@ def plot_single_cell_overlays_snmf_old(dataset, main_cell_id, number_of_overlays
 
 
 def plot_subunit_mosaic_old(dataset, pixel_dimensions):
-    # dataset is e.g.r"F:\Laura\zebrafish_02_12_2025\Phase_01\4px_20Hz_40mins_shuffle_idx_4"
+    # dataset is e.g.r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/4px_20Hz_40mins_shuffle_idx_4"
     # pixel dimensions is e.g. 600 for 600x600 pixels (4px noise), 800 for 800x800 (12px noise)
 
     # Import dependencies

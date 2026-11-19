@@ -448,7 +448,7 @@ def plot_rf_statistics(dataset, channel, qi_limit, bin_size):
 # import math
 #
 # path_to_data = Path(
-#     r"F:\Laura\zebrafish_08_01_2026\Phase_00\noise_analysis\noise_data_v2.nc"
+#     r"/mnt/mea_nas/Laura/zebrafish_08_01_2026/Phase_00/noise_analysis/noise_data_v2.nc"
 # )
 # dataset = xr.load_dataset(path_to_data)
 # channel = "4px_20Hz_40mins_shuffle_460_560"

@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # %% Creating Recording_Config object
 
     rec_object = Recording_Config(
-        root_path=Path(r"F:\Laura\zebrafish_14_08_2026\Phase_00"),
+        root_path=Path(r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00"),
     )
     rec_object.add_channel(
         stimulus_id=6, name="32px_15Hz_20mins_shuffle_x4", colour="red"

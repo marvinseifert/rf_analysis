@@ -9,6 +9,7 @@ import numpy as np
 import polars as pl
 import xarray as xr
 from loading.noise_data import load_noise_data  # v2 RF dataset, checked
+from loading.polarspike_triggers import pad_to_repeats
 from laura_scripts.Alignment_pipeline.alignment_geometry import (
     moving_bar_direction_names,
     moving_bar_directions_deg,
@@ -23,12 +24,14 @@ from laura_scripts.Alignment_pipeline.alignment_geometry import (
 # This is generated in the alignment pipeline re-written script, and is specifically for 15_05_2026 currently.
 # The one ending in 400px is for tiny moving bar, and the one ending in 300px is for moving bar.
 central_cells_path = Path(
-    r"F:\Laura\zebrafish_15_05_2026\Phase_00"
-    r"\noise_analysis"
-    r"\zebrafish_15_05_2026_phase_00_central_RF_cells_300px.npy"
+    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00"
+    r"/noise_analysis"
+    r"/zebrafish_15_05_2026_phase_00_central_RF_cells_300px.npy"
 )
 
-central_cell_ids = np.load(central_cells_path)
+# Not used further in this script. The .npy was only on the old Windows F: drive, so it
+# is loaded only if present (OS_analysis_stimulus_filtered_cells.py uses these lists).
+central_cell_ids = np.load(central_cells_path) if central_cells_path.exists() else None
 
 print(central_cell_ids)
 print(type(central_cell_ids))
@@ -38,30 +41,30 @@ print(type(central_cell_ids))
 dataset_configs = [
     {
         "recording_id": "15_05_2026_p0",
-        "overview_path": r"F:\Laura\zebrafish_15_05_2026\Phase_00\overview",
-        "noise_data_path": r"F:\Laura\zebrafish_15_05_2026\Phase_00\noise_analysis\noise_data_v2.nc",
+        "overview_path": r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/overview",
+        "noise_data_path": r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/noise_analysis/noise_data_v2.nc",
         "stimulus_index": 4,  # moving bar stim
         "rf_channel": "12px_20Hz_25mins_shuffle_x12_white",
     },
     # # Add more datasets here.
     # {
     #     "recording_id": "05_11_2025_p1",
-    #     "overview_path": r"F:\Laura\zebrafish_05_11_2025\Phase_01\overview",
-    #     "noise_data_path": r"F:\Laura\zebrafish_05_11_2025\Phase_01\noise_analysis\noise_data_v2.nc",
+    #     "overview_path": r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_01/overview",
+    #     "noise_data_path": r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/noise_data_v2.nc",
     #     "stimulus_index": 5,
     #     "rf_channel": "12px_20Hz_shuffle",
     # },
     # {
     #     "recording_id": "02_12_2025_p1",
-    #     "overview_path": r"F:\Laura\zebrafish_02_12_2025\Phase_01\overview",
-    #     "noise_data_path": r"F:\Laura\zebrafish_02_12_2025\Phase_01\noise_analysis\noise_data_v2.nc",
+    #     "overview_path": r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/overview",
+    #     "noise_data_path": r"/mnt/mea_nas/Laura/zebrafish_02_12_2025/Phase_01/noise_analysis/noise_data_v2.nc",
     #     "stimulus_index": 3,
     #     "rf_channel": "12px_20Hz_shuffle",
     # },
     #     {
     #         "recording_id": "26_02_2026_p0",
-    #         "overview_path": r"F:\Laura\zebrafish_26_02_2026\Phase_00\overview",
-    #         "noise_data_path": r"F:\Laura\zebrafish_26_02_2026\Phase_00\noise_analysis\noise_data_v2.nc",
+    #         "overview_path": r"/mnt/mea_nas/Laura/zebrafish_26_02_2026/Phase_00/overview",
+    #         "noise_data_path": r"/mnt/mea_nas/Laura/zebrafish_26_02_2026/Phase_00/noise_analysis/noise_data_v2.nc",
     #         "stimulus_index": 3,
     #         "rf_channel": "12px_20Hz_shuffle",
     #     },
@@ -1168,6 +1171,11 @@ def analyse_one_dataset(
     print(f"RF channel: {rf_channel}")
 
     recording = Overview.Recording.load(overview_path)
+
+    # The moving bar is always played expected_repeats (10) times. polarspike needs
+    # whole repeats, so if the last trigger(s) are missing (e.g. 15/10/2026) they are
+    # added at the frame interval (in memory only, the overview file is not changed).
+    pad_to_repeats(recording, stimulus_index, expected_repeats)
 
     # Use open_dataset, not load_dataset, to avoid loading huge RF maps for
     # every dataset into memory.

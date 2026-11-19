@@ -36,7 +36,7 @@ def video_to_numpy(file_path):
 
 # %% Import video of MEA array under visual stimuli projection and generate and save mean image from video
 # import video and convert to numpy array using function
-video_file = rf"F:\alignment\WIN_20260414_16_46_04_Pro.mp4"
+video_file = rf"/mnt/mea_nas/alignment/WIN_20260414_16_46_04_Pro.mp4"
 video_data = video_to_numpy(video_file)
 video_size = video_data.shape  # (number of frames, height, width, channels)
 
@@ -49,7 +49,7 @@ mean_image = (mean_image / np.max(mean_image) * 255).astype(np.uint8)
 
 # write mean image back to file
 cv2.imwrite(
-    rf"F:\alignment\mean_image.png",
+    rf"/mnt/mea_nas/alignment/mean_image.png",
     mean_image,
 )
 # display mean image
@@ -59,7 +59,7 @@ fig.show()
 
 # %% Proof of concept for autocorrelation pipeline, using reference image of electrode array
 # Load a reference electrode array image called channel.png
-channel_file = rf"F:\alignment\New folder\channel.png"
+channel_file = rf"/mnt/mea_nas/alignment/New folder/channel.png"
 channel_image = cv2.imread(channel_file, cv2.IMREAD_GRAYSCALE)
 channel_image = (channel_image / np.max(channel_image) * 255).astype(np.uint8)
 fig, ax = plt.subplots(figsize=(10, 10))
@@ -301,7 +301,7 @@ print(
 
 # %% load the original stimulus
 with h5py.File(
-    rf"F:\alignment\test_measure.h5",
+    rf"/mnt/mea_nas/alignment/test_measure.h5",
     "r",
 ) as f:
     stimulus_size = f["Noise"][:].shape[1]
