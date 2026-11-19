@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 from polarspike import Overview
 from tqdm import tqdm
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from laura_scripts.Alignment_pipeline.alignment_geometry import (
+    moving_bar_direction_names,
+    moving_bar_directions_deg,
+)
 
 from fff_common import (
     get_cell_stimulus_spikes,
@@ -15,7 +26,11 @@ from fff_common import (
 )
 
 
-# Exact direction convention from the supplied multipanel summary script.
+# ORIENTATION [MOVING BAR DIRECTIONS] Projected direction of each 300-frame block, in
+# presentation order. This fixed table is only right for recordings BEFORE 8 Oct 2026;
+# calculate_moving_bar_features() replaces it with the table for the recording's date
+# (alignment_geometry.moving_bar_direction_names). From 8 Oct 2026 the order is
+# up, down, left, right, up-left, down-left, up-right, down-right.
 DIRECTION_NAMES = np.array(
     [
         "up",
@@ -305,6 +320,13 @@ def calculate_moving_bar_features(
     **config_overrides,
 ) -> pd.DataFrame:
     recording = Overview.Recording.load(overview_path)
+    # ORIENTATION [MOVING BAR DIRECTIONS] direction of each block for this recording's date
+    # (changed 8 Oct 2026), unless direction_names / directions_deg are passed explicitly.
+    if "direction_names" not in config_overrides:
+        config_overrides["direction_names"] = moving_bar_direction_names(overview_path)
+        config_overrides["directions_deg"] = moving_bar_directions_deg(
+            config_overrides["direction_names"]
+        )
     cfg = MovingBarFeatureConfig(stimulus_index=int(stimulus_id), **config_overrides)
     cells = stimulus_cell_indices(recording, stimulus_id)
 

@@ -8,8 +8,11 @@
 #     (x, y) -> (-y, -x); from 8 Oct 2026 (x, y) -> (y, -x));
 #     no left-right data flip
 #   * clipping to the displayed stimulus is done in projected coordinates
-#   Note: moving-bar directions on the polar panels are in the stimulus file's
-#   own convention, not in the projected (cone-image) frame of the RF panels.
+#   * moving-bar directions on the polar panels: projected directions chosen by date
+#     (alignment_geometry.moving_bar_direction_names; changed 8 Oct 2026), drawn with
+#     0° = up, clockwise. The RF long axis is converted to the same frame
+#     (alignment_geometry.rf_angle_to_polar_orientation_deg) and drawn on the polar plot
+#     as a solid black line; the stored RF `angle` itself is in the stimulus frame.
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,7 +36,11 @@ from polarspike import Overview
 from laura_scripts.Alignment_pipeline.alignment_geometry import (
     dataset_um_per_px,
     load_alignment_geometry,
+    moving_bar_direction_names,
+    moving_bar_directions_deg,
+    orientation_difference_deg,
     require_v2_rf_frame,
+    rf_angle_to_polar_orientation_deg,
 )
 
 """Create per-cell retinal response plots and a combined summary figure.
@@ -70,7 +77,11 @@ appear in the RF portion of the summary figure.
 """
 # %% Constants
 
-# Moving bar / edge directions, as projected on the MEA - using the original fps_py
+# Moving bar / edge directions, as projected on the MEA - using the original fps_py.
+# ORIENTATION [MOVING BAR DIRECTIONS] Only right for recordings BEFORE 8 Oct 2026; the
+# session replaces it with the table for cfg.recording_name's date
+# (alignment_geometry.moving_bar_direction_names). From 8 Oct 2026 the block order is
+# up, down, left, right, up-left, down-left, up-right, down-right.
 DIRECTION_NAMES = np.array(
     [
         "up",
@@ -306,6 +317,8 @@ class OSConfig:
     show_peak_direction_line: bool = True
     show_orientation_axis: bool = True
     show_motion_direction_arrows: bool = True
+    # RF long axis (solid black line) on the polar plot, same frame as the aligned cone image.
+    show_rf_axis: bool = True
     polar_arrow_radius: float = 0.60
     polar_arrow_length: float = 0.075
     polar_arrow_linewidth: float = 1.8
@@ -1771,7 +1784,9 @@ def _add_motion_arrows(ax, cfg: OSConfig):
         )
 
 
-def _draw_polar_tuning(ax, os_data: dict[str, Any], cfg: OSConfig):
+def _draw_polar_tuning(
+    ax, os_data: dict[str, Any], cfg: OSConfig, rf_axis_deg: float = np.nan
+):
     metric = get_os_metric(os_data, cfg)
     theta, responses = _close_polar_curve(cfg.directions_deg, metric["responses"])
     (line,) = ax.plot(
@@ -1803,6 +1818,19 @@ def _draw_polar_tuning(ax, os_data: dict[str, Any], cfg: OSConfig):
                     linestyle="--",
                     color=line.get_color(),
                     alpha=0.7,
+                )
+        # ORIENTATION [RF ANGLE -> POLAR] RF long axis, same frame as the tuning curve
+        # and the aligned cone image (0° = up, clockwise); solid black, both ends.
+        if cfg.show_rf_axis and np.isfinite(rf_axis_deg):
+            for angle_deg in [rf_axis_deg, rf_axis_deg + 180]:
+                angle = np.deg2rad(angle_deg % 360)
+                ax.plot(
+                    [angle, angle],
+                    [0, max_response],
+                    linewidth=1.4,
+                    linestyle="-",
+                    color="black",
+                    alpha=0.8,
                 )
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
@@ -2066,6 +2094,7 @@ def draw_os(
     quality: float,
     tilt: float,
     cfg: OSConfig,
+    rf_axis_deg: float = np.nan,
 ):
     direction_duration_s = cfg.frames_per_direction * cfg.seconds_per_frame
     metric = get_os_metric(os_data, cfg)
@@ -2074,7 +2103,7 @@ def draw_os(
     polar_box, positions, dimensions = _os_layout(container, cfg)
 
     ax_polar = container.add_axes(polar_box, projection="polar")
-    _draw_polar_tuning(ax_polar, os_data, cfg)
+    _draw_polar_tuning(ax_polar, os_data, cfg, rf_axis_deg=rf_axis_deg)
 
     raster_width = dimensions["raster_width"]
     raster_height = dimensions["raster_height"]
@@ -2109,12 +2138,20 @@ def draw_os(
                 show_y_scale=(cfg.show_psth_scale and direction_name == "left"),
             )
 
+    bar_axis = metric["preferred_orientation_deg"]
+    rf_axis_text = f"{rf_axis_deg:.0f}°" if np.isfinite(rf_axis_deg) else "n/a"
+    rf_vs_bar_text = (
+        f"{float(orientation_difference_deg(rf_axis_deg, bar_axis)):.0f}°"
+        if np.isfinite(rf_axis_deg) and np.isfinite(bar_axis)
+        else "n/a"
+    )
     container.suptitle(
         f"{cfg.title}\n"
         f"Cell {cell_id} | {metric['label']} | "
         f"Q={quality:.1f}, tilt={tilt:.2f}, "
         f"DSI={metric['peak_opposite_DSI']:.2f}, "
-        f"OSI={metric['OSI']:.2f}",
+        f"OSI={metric['OSI']:.2f}\n"
+        f"RF axis={rf_axis_text}, bar axis={bar_axis:.0f}°, RF vs bar={rf_vs_bar_text}",
         fontsize=12,
         y=0.98,
     )
@@ -2149,6 +2186,12 @@ class CellPlotSession:
             print("Using the already-loaded NetCDF dataset.")
             self.dataset = dataset
         require_v2_rf_frame(self.dataset, str(cfg.noise_data_path))
+
+        # ORIENTATION [MOVING BAR DIRECTIONS] direction of each moving-bar block for this
+        # recording's date (changed 8 Oct 2026), unless set to something else in OSConfig.
+        if np.array_equal(cfg.os.direction_names, DIRECTION_NAMES):
+            cfg.os.direction_names = moving_bar_direction_names(cfg.recording_name)
+            cfg.os.directions_deg = moving_bar_directions_deg(cfg.os.direction_names)
 
         cfg.output_dir.mkdir(parents=True, exist_ok=True)
         for subfolder in [
@@ -2248,6 +2291,17 @@ class CellPlotSession:
         # The reference-channel metrics are used for the STA and non-RF panels.
         quality, tilt = get_quality_and_tilt(self.dataset, cell_id, self.cfg)
 
+        # ORIENTATION [RF ANGLE -> POLAR] RF long axis (reference channel) in the
+        # polar-plot / aligned cone image frame (0° = up, clockwise, 0-180°).
+        rf_angle_deg = get_cell_metric(
+            self.dataset, "angle", cell_id, self.reference_channel
+        )
+        rf_orientation_polar_deg = (
+            float(rf_angle_to_polar_orientation_deg(rf_angle_deg, self.cfg.recording_name))
+            if np.isfinite(rf_angle_deg)
+            else np.nan
+        )
+
         # Prepare one independent RF result for each RF channel in the variable.
         rf_panels = []
         for channel in self.rf_channels:
@@ -2301,6 +2355,8 @@ class CellPlotSession:
             "cell_id": cell_id,
             "quality": quality,
             "tilt": tilt,
+            "rf_angle_deg": rf_angle_deg,
+            "rf_orientation_polar_deg": rf_orientation_polar_deg,
             "reference_channel": self.reference_channel,
             "rf_channels": list(self.rf_channels),
             "rf_panels": rf_panels,
@@ -2494,6 +2550,7 @@ class CellPlotSession:
             result["quality"],
             result["tilt"],
             self.cfg.os,
+            rf_axis_deg=result["rf_orientation_polar_deg"],
         )
         return self._finish(fig, "os", cell_id, save, show)
 
@@ -2662,6 +2719,7 @@ class CellPlotSession:
             result["quality"],
             result["tilt"],
             self.cfg.os,
+            rf_axis_deg=result["rf_orientation_polar_deg"],
         )
 
         left_subfig.suptitle(
@@ -2702,6 +2760,39 @@ class CellPlotSession:
         )
         table["rank"] = np.arange(1, len(table) + 1)
         return table
+
+    def tuning_table(self, cell_ids=None) -> pd.DataFrame:
+        """One row per cell: RF tilt and long axis next to the moving-bar OSI / DSI /
+        preferred direction and orientation, all angles in the polar-plot / aligned cone
+        image frame (0° = up, clockwise). rf_vs_bar_orientation_diff_deg: 0° = RF long
+        axis parallel to the preferred motion axis, 90° = perpendicular."""
+        rows = []
+        for cell_id in self.available_cells if cell_ids is None else cell_ids:
+            result = self.analyse_cell(int(cell_id))
+            metric = get_os_metric(result["os"], self.cfg.os)
+            rf_axis = result["rf_orientation_polar_deg"]
+            bar_axis = metric["preferred_orientation_deg"]
+            rows.append(
+                {
+                    "recording_name": self.cfg.recording_name,
+                    "cell_index": int(cell_id),
+                    "rf_channel": self.reference_channel,
+                    "rf_quality": result["quality"],
+                    "tilt": result["tilt"],
+                    "rf_angle_deg_stimulus": result["rf_angle_deg"],
+                    "rf_orientation_polar_deg": rf_axis,
+                    "OSI": metric["OSI"],
+                    "DSI": metric["peak_opposite_DSI"],
+                    "preferred_direction_deg": metric["peak_preferred_direction_deg"],
+                    "preferred_orientation_deg": bar_axis,
+                    "rf_vs_bar_orientation_diff_deg": (
+                        float(orientation_difference_deg(rf_axis, bar_axis))
+                        if np.isfinite(rf_axis) and np.isfinite(bar_axis)
+                        else np.nan
+                    ),
+                }
+            )
+        return pd.DataFrame(rows)
 
     def close(self, close_dataset: bool | None = None) -> None:
         """Close figures and optionally close the NetCDF dataset.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -10,6 +11,12 @@ import pandas as pd
 from polarspike import Overview
 from tqdm import tqdm
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from laura_scripts.Alignment_pipeline.alignment_geometry import moving_bar_direction_table
+
 from fff_common import (
     get_cell_stimulus_spikes,
     normalise_repeat_labels,
@@ -17,18 +24,14 @@ from fff_common import (
 )
 
 
-# Exact projector/projection direction transformation from the supplied
-# moving-edge script.
-H5_TO_PLOT_DIRECTION = {
-    "left_to_right": "up",
-    "right_to_left": "down",
-    "bottom_to_top": "right",
-    "top_to_bottom": "left",
-    "bottom_left_to_top_right": "up-right",
-    "bottom_right_to_top_left": "down-right",
-    "top_left_to_bottom_right": "up-left",
-    "top_right_to_bottom_left": "down-left",
-}
+# ORIENTATION [MOVING BAR DIRECTIONS] H5 direction -> projected direction depends on the
+# recording date (the stimulus -> projection transform changed on 8 Oct 2026), so it is no
+# longer a fixed table here: load_stimulus_timing() gets it from
+# alignment_geometry.moving_bar_direction_table(overview path). The table used for every
+# recording BEFORE 8 Oct 2026 (unchanged) was:
+#   left_to_right -> up, right_to_left -> down, bottom_to_top -> right, top_to_bottom -> left,
+#   bottom_left_to_top_right -> up-right, bottom_right_to_top_left -> down-right,
+#   top_left_to_bottom_right -> up-left, top_right_to_bottom_left -> down-left
 
 DIRECTION_NAMES = np.array(
     [
@@ -108,8 +111,12 @@ def _read_scalar_text(dataset: h5py.Dataset, default: str = "unknown") -> str:
     return default
 
 
-def load_stimulus_timing(h5_path: Path) -> StimulusTiming:
+def load_stimulus_timing(h5_path: Path, recording_name: str | Path) -> StimulusTiming:
+    """recording_name: any name/path containing DD_MM_YYYY (e.g. the overview path); it
+    picks the H5 -> projected direction table (changed 8 Oct 2026)."""
     h5_path = Path(h5_path)
+    # ORIENTATION [MOVING BAR DIRECTIONS] date-dependent table, see alignment_geometry.
+    h5_to_plot_direction = moving_bar_direction_table(recording_name)
     if not h5_path.exists():
         raise FileNotFoundError(f"Moving-edge H5 file not found: {h5_path}")
 
@@ -149,11 +156,11 @@ def load_stimulus_timing(h5_path: Path) -> StimulusTiming:
     if np.any(start_frames < 0) or np.any(frame_counts <= 0):
         raise ValueError(f"Invalid direction frame boundaries in {h5_path}")
 
-    unknown = [name for name in h5_direction_names if name not in H5_TO_PLOT_DIRECTION]
+    unknown = [name for name in h5_direction_names if name not in h5_to_plot_direction]
     if unknown:
         raise ValueError(f"Unknown H5 direction names: {unknown}")
 
-    plot_direction_names = tuple(H5_TO_PLOT_DIRECTION[name] for name in h5_direction_names)
+    plot_direction_names = tuple(h5_to_plot_direction[name] for name in h5_direction_names)
     expected_names = set(DIRECTION_NAMES.tolist())
     if set(plot_direction_names) != expected_names:
         raise ValueError(
@@ -486,7 +493,7 @@ def calculate_moving_edge_features(
     condition_tables = []
 
     for condition in conditions:
-        timing = load_stimulus_timing(condition.h5_path)
+        timing = load_stimulus_timing(condition.h5_path, overview_path)
         validate_condition(condition, timing)
         cells = stimulus_cell_indices(recording, condition.stimulus_index)
 

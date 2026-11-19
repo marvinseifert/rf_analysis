@@ -15,6 +15,12 @@ import xarray as xr
 from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 from polarspike import Overview
 
+from laura_scripts.Alignment_pipeline.alignment_geometry import (
+    moving_bar_direction_table,
+    orientation_difference_deg,
+    rf_angle_to_polar_orientation_deg,
+)
+
 
 """
 Analyse 1-4 moving-bar stimuli in compact per-cell summary figures.
@@ -29,16 +35,18 @@ Main features
 - Plot only the conditions you provide.
 - Preserve the supplied order.
 - Use exact direction timing metadata read from each H5 file.
-- Use the projector/projection transformed direction mapping:
+- Use the projector/projection transformed direction mapping, chosen by recording
+  date (alignment_geometry.moving_bar_direction_table, from the overview path):
 
-    left_to_right              -> up
-    right_to_left              -> down
-    bottom_to_top              -> right
-    top_to_bottom              -> left
-    bottom_left_to_top_right   -> up-right
-    bottom_right_to_top_left   -> down-right
-    top_left_to_bottom_right   -> up-left
-    top_right_to_bottom_left   -> down-left
+    H5 direction                 before 8 Oct 2026   from 8 Oct 2026
+    left_to_right              -> up                 up
+    right_to_left              -> down               down
+    bottom_to_top              -> right              left
+    top_to_bottom              -> left               right
+    bottom_left_to_top_right   -> up-right           up-left
+    bottom_right_to_top_left   -> down-right         down-left
+    top_left_to_bottom_right   -> up-left            up-right
+    top_right_to_bottom_left   -> down-left          down-right
 
 Figure layout
 -------------
@@ -89,17 +97,14 @@ DIRECTIONS_DEG = np.array(
     dtype=float,
 )
 
-# KEEPING YOUR PROJECTOR / PROJECTION TRANSFORMATION
-H5_TO_PLOT_DIRECTION = {
-    "left_to_right": "up",
-    "right_to_left": "down",
-    "bottom_to_top": "right",
-    "top_to_bottom": "left",
-    "bottom_left_to_top_right": "up-right",
-    "bottom_right_to_top_left": "down-right",
-    "top_left_to_bottom_right": "up-left",
-    "top_right_to_bottom_left": "down-left",
-}
+# ORIENTATION [MOVING BAR DIRECTIONS] H5 direction -> projected direction now depends on
+# the recording date (the stimulus -> projection transform changed on 8 Oct 2026), so it is
+# no longer a fixed table here: load_stimulus_timing() gets it from
+# alignment_geometry.moving_bar_direction_table(recording name / overview path).
+# The table used for every recording BEFORE 8 Oct 2026 (unchanged) was:
+#   left_to_right -> up, right_to_left -> down, bottom_to_top -> right, top_to_bottom -> left,
+#   bottom_left_to_top_right -> up-right, bottom_right_to_top_left -> down-right,
+#   top_left_to_bottom_right -> up-left, top_right_to_bottom_left -> down-left
 
 
 # =============================================================================
@@ -158,6 +163,8 @@ class PlotStyleConfig:
     show_peak_direction_line: bool = True
     show_orientation_axis: bool = True
     show_motion_direction_arrows: bool = True
+    # RF long axis (solid black line) on the polar plot, same frame as the aligned cone image.
+    show_rf_axis: bool = True
 
     polar_arrow_radius: float = 0.60
     polar_arrow_length: float = 0.075
@@ -308,8 +315,12 @@ def _read_scalar_text(dataset: h5py.Dataset, default: str = "unknown") -> str:
 # =============================================================================
 
 
-def load_stimulus_timing(h5_path: Path) -> StimulusTiming:
+def load_stimulus_timing(h5_path: Path, recording_name: str | Path) -> StimulusTiming:
+    """recording_name: any name/path containing the recording date DD_MM_YYYY (e.g. the
+    overview path); it picks the H5 -> projected direction table (changed 8 Oct 2026)."""
     h5_path = Path(h5_path)
+    # ORIENTATION [MOVING BAR DIRECTIONS] date-dependent table, see alignment_geometry.
+    h5_to_plot_direction = moving_bar_direction_table(recording_name)
 
     if not h5_path.exists():
         raise FileNotFoundError(f"Moving-bar H5 file not found: {h5_path}")
@@ -357,15 +368,15 @@ def load_stimulus_timing(h5_path: Path) -> StimulusTiming:
     if np.any(start_frames < 0) or np.any(frame_counts <= 0):
         raise ValueError(f"Invalid direction frame boundaries in {h5_path}")
 
-    unknown = [name for name in h5_direction_names if name not in H5_TO_PLOT_DIRECTION]
+    unknown = [name for name in h5_direction_names if name not in h5_to_plot_direction]
     if unknown:
         raise ValueError(
             f"Unknown direction names in {h5_path.name}: {unknown}. "
-            f"Known names: {sorted(H5_TO_PLOT_DIRECTION)}"
+            f"Known names: {sorted(h5_to_plot_direction)}"
         )
 
     plot_direction_names = tuple(
-        H5_TO_PLOT_DIRECTION[name] for name in h5_direction_names
+        h5_to_plot_direction[name] for name in h5_direction_names
     )
 
     expected_names = set(DIRECTION_NAMES.tolist())
@@ -513,6 +524,24 @@ def get_quality_and_tilt(
         tilt = 1.0 / tilt
 
     return quality, tilt
+
+
+def get_rf_orientation(
+    dataset: xr.Dataset,
+    cell_id: int,
+    cfg: PlotConfig,
+    reference_channel: Any | None,
+) -> tuple[float, float]:
+    """(RF angle as stored, RF long axis in the polar-plot frame).
+
+    ORIENTATION [RF ANGLE -> POLAR] `angle` is in the STIMULUS frame (0° = right, towards
+    down, 0-180°); the second value is the same axis in the polar-plot / aligned cone image
+    frame (0° = up, clockwise, 0-180°), via the recording's date-dependent transform.
+    """
+    rf_angle = get_cell_metric(dataset, "angle", cell_id, reference_channel)
+    if not np.isfinite(rf_angle):
+        return rf_angle, np.nan
+    return rf_angle, float(rf_angle_to_polar_orientation_deg(rf_angle, cfg.overview_path))
 
 
 def select_cells(
@@ -1036,6 +1065,7 @@ def _draw_polar_tuning(
     condition_data: dict[str, Any],
     style: PlotStyleConfig,
     radial_max: float | None = None,
+    rf_axis_deg: float = np.nan,
 ) -> None:
     metric = get_response_metric(condition_data, style)
     theta, responses = _close_polar_curve(
@@ -1087,6 +1117,20 @@ def _draw_polar_tuning(
                     linestyle="--",
                     color=line.get_color(),
                     alpha=0.70,
+                )
+
+        # ORIENTATION [RF ANGLE -> POLAR] RF long axis, same frame as the tuning curve
+        # and the aligned cone image (0° = up, clockwise); solid black, both ends.
+        if style.show_rf_axis and np.isfinite(rf_axis_deg):
+            for angle_deg in [rf_axis_deg, rf_axis_deg + 180]:
+                angle = np.deg2rad(angle_deg % 360)
+                ax.plot(
+                    [angle, angle],
+                    [0, line_extent],
+                    linewidth=1.4,
+                    linestyle="-",
+                    color="black",
+                    alpha=0.8,
                 )
 
     ax.set_theta_zero_location("N")
@@ -1373,6 +1417,7 @@ def draw_condition_panel(
     tilt: float,
     style: PlotStyleConfig,
     radial_max: float | None = None,
+    rf_axis_deg: float = np.nan,
 ) -> None:
     condition = condition_data["condition"]
     timing = condition_data["timing"]
@@ -1387,6 +1432,7 @@ def draw_condition_panel(
         condition_data=condition_data,
         style=style,
         radial_max=radial_max,
+        rf_axis_deg=rf_axis_deg,
     )
 
     raster_width = dimensions["raster_width"]
@@ -1429,13 +1475,22 @@ def draw_condition_panel(
 
     quality_text = f"{quality:.1f}" if np.isfinite(quality) else "n/a"
     tilt_text = f"{tilt:.2f}" if np.isfinite(tilt) else "n/a"
+    rf_axis_text = f"{rf_axis_deg:.0f}°" if np.isfinite(rf_axis_deg) else "n/a"
+    rf_vs_bar = (
+        orientation_difference_deg(rf_axis_deg, metric["preferred_orientation_deg"])
+        if np.isfinite(rf_axis_deg) and np.isfinite(metric["preferred_orientation_deg"])
+        else np.nan
+    )
+    rf_vs_bar_text = f"{float(rf_vs_bar):.0f}°" if np.isfinite(rf_vs_bar) else "n/a"
 
     container.suptitle(
         f"{condition.title} | H5: {timing.polarity}, {timing.frame_rate_hz:g} fps\n"
         f"Cell {cell_id} | {metric['label']} | "
         f"Q={quality_text}, tilt={tilt_text}, "
         f"DSI={metric['peak_opposite_DSI']:.2f}, "
-        f"OSI={metric['OSI']:.2f}",
+        f"OSI={metric['OSI']:.2f}\n"
+        f"RF axis={rf_axis_text}, bar axis={metric['preferred_orientation_deg']:.0f}°, "
+        f"RF vs bar={rf_vs_bar_text}",
         fontsize=10,
         y=0.985,
     )
@@ -1505,7 +1560,7 @@ class MovingBarSession:
 
         self.timings: dict[str, StimulusTiming] = {}
         for condition in cfg.conditions:
-            timing = load_stimulus_timing(condition.h5_path)
+            timing = load_stimulus_timing(condition.h5_path, cfg.overview_path)
             validate_condition_against_timing(condition, timing)
             self.timings[condition.title] = timing
 
@@ -1567,6 +1622,12 @@ class MovingBarSession:
             cfg=self.cfg,
             reference_channel=self.reference_channel,
         )
+        rf_angle_deg, rf_orientation_polar_deg = get_rf_orientation(
+            dataset=self.dataset,
+            cell_id=cell_id,
+            cfg=self.cfg,
+            reference_channel=self.reference_channel,
+        )
 
         condition_results = []
 
@@ -1606,6 +1667,8 @@ class MovingBarSession:
             "cell_id": cell_id,
             "quality": quality,
             "tilt": tilt,
+            "rf_angle_deg": rf_angle_deg,
+            "rf_orientation_polar_deg": rf_orientation_polar_deg,
             "conditions": condition_results,
         }
 
@@ -1674,6 +1737,7 @@ class MovingBarSession:
                 tilt=result["tilt"],
                 style=self.cfg.style,
                 radial_max=radial_max,
+                rf_axis_deg=result["rf_orientation_polar_deg"],
             )
 
         output_path = (
@@ -1722,11 +1786,19 @@ class MovingBarSession:
                 cfg=self.cfg,
                 reference_channel=self.reference_channel,
             )
+            rf_angle_deg, rf_orientation_polar_deg = get_rf_orientation(
+                dataset=self.dataset,
+                cell_id=int(cell_id),
+                cfg=self.cfg,
+                reference_channel=self.reference_channel,
+            )
             rows.append(
                 {
                     "cell_index": int(cell_id),
                     "rf_quality": quality,
                     "tilt": tilt,
+                    "rf_angle_deg_stimulus": rf_angle_deg,
+                    "rf_orientation_polar_deg": rf_orientation_polar_deg,
                 }
             )
 
@@ -1738,6 +1810,45 @@ class MovingBarSession:
         )
         table["rank"] = np.arange(1, len(table) + 1)
         return table
+
+    def tuning_table(self) -> pd.DataFrame:
+        """One row per selected cell and condition: RF tilt and long axis next to the
+        moving-bar OSI / DSI / preferred direction and orientation, all angles in the
+        polar-plot / aligned cone image frame (0° = up, clockwise).
+        rf_vs_bar_orientation_diff_deg: 0° = RF long axis parallel to the preferred
+        motion axis, 90° = perpendicular (parallel to the preferred bar edge)."""
+        rows = []
+        for cell_id in self.available_cells:
+            result = self.analyse_cell(int(cell_id))
+            rf_axis = result["rf_orientation_polar_deg"]
+            for condition_data in result["conditions"]:
+                metric = get_response_metric(condition_data, self.cfg.style)
+                bar_axis = metric["preferred_orientation_deg"]
+                rows.append(
+                    {
+                        "recording_name": self.cfg.recording_name,
+                        "cell_index": int(cell_id),
+                        "condition": condition_data["condition"].title,
+                        "response_metric": self.cfg.style.response_metric,
+                        "rf_quality": result["quality"],
+                        "tilt": result["tilt"],
+                        "rf_angle_deg_stimulus": result["rf_angle_deg"],
+                        "rf_orientation_polar_deg": rf_axis,
+                        "OSI": metric["OSI"],
+                        "DSI": metric["peak_opposite_DSI"],
+                        "preferred_direction_deg": metric["peak_preferred_direction_deg"],
+                        "vector_preferred_direction_deg": metric[
+                            "vector_preferred_direction_deg"
+                        ],
+                        "preferred_orientation_deg": bar_axis,
+                        "rf_vs_bar_orientation_diff_deg": (
+                            float(orientation_difference_deg(rf_axis, bar_axis))
+                            if np.isfinite(rf_axis) and np.isfinite(bar_axis)
+                            else np.nan
+                        ),
+                    }
+                )
+        return pd.DataFrame(rows)
 
     def clear_cache(self, cell_id: int | None = None) -> None:
         if cell_id is None:

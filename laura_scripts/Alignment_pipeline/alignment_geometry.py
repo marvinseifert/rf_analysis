@@ -100,6 +100,126 @@ def stimulus_to_projection_for_recording(name) -> tuple[np.ndarray, str]:
 RF_MAP_FRAME_V2 = "stimulus_v2"
 
 
+# =============================================================================
+# Moving-bar / moving-edge directions (added 19 Nov 2026)
+# =============================================================================
+# ORIENTATION [MOVING BAR DIRECTIONS] The bar directions named in the stimulus H5 files are
+# directions in the STIMULUS frame (x = column, + right; y = row, + down). Where the bar
+# moves on the retina (PROJECTED frame, viewed from the door) uses the SAME date-dependent
+# transform as the RFs (stimulus_to_projection_for_recording), so it changed on 8 Oct 2026:
+#
+#   H5 direction                before 8 Oct 2026   from 8 Oct 2026
+#   left_to_right               up                  up
+#   right_to_left               down                down
+#   bottom_to_top               right               left
+#   top_to_bottom               left                right
+#   bottom_left_to_top_right    up-right            up-left
+#   bottom_right_to_top_left    down-right          down-left
+#   top_left_to_bottom_right    up-left             up-right
+#   top_right_to_bottom_left    down-left           down-right
+#
+# The tables are computed from the transform matrices below, not typed in.
+STIMULUS_BAR_DIRECTION_VECTORS = {
+    "left_to_right": (1, 0),
+    "right_to_left": (-1, 0),
+    "bottom_to_top": (0, -1),
+    "top_to_bottom": (0, 1),
+    "bottom_left_to_top_right": (1, -1),
+    "bottom_right_to_top_left": (-1, -1),
+    "top_left_to_bottom_right": (1, 1),
+    "top_right_to_bottom_left": (-1, 1),
+}
+
+# Order in which the 8-direction moving bar is presented (300 frames each). Scripts that
+# split the bar by frame blocks instead of reading direction names from the H5 file
+# (OS_analysis*.py, extract_moving_bar_features.py, summary_plot_single_cell.py) rely on it.
+MOVING_BAR_STIMULUS_ORDER = (
+    "left_to_right",
+    "right_to_left",
+    "bottom_to_top",
+    "top_to_bottom",
+    "bottom_left_to_top_right",
+    "bottom_right_to_top_left",
+    "top_left_to_bottom_right",
+    "top_right_to_bottom_left",
+)
+
+# Polar-plot angle of each projected direction: 0° = up, clockwise (90° = right).
+# NB: RF `angle` / `tilt` use a different convention (from +x towards +y down); convert
+# before comparing.
+PROJECTED_DIRECTION_DEG = {
+    "up": 0.0,
+    "up-right": 45.0,
+    "right": 90.0,
+    "down-right": 135.0,
+    "down": 180.0,
+    "down-left": 225.0,
+    "left": 270.0,
+    "up-left": 315.0,
+}
+
+
+def _projected_direction_name(dx: float, dy: float) -> str:
+    """'up', 'down-left', ... for a direction in the projected frame (+y down)."""
+    vertical = "up" if dy < -0.5 else "down" if dy > 0.5 else ""
+    horizontal = "right" if dx > 0.5 else "left" if dx < -0.5 else ""
+    return "-".join(part for part in (vertical, horizontal) if part)
+
+
+def moving_bar_direction_table(name) -> dict[str, str]:
+    """{H5 direction name: projected direction} for the recording in `name`
+    (any name/path containing DD_MM_YYYY). ORIENTATION [MOVING BAR DIRECTIONS]."""
+    transform, _ = stimulus_to_projection_for_recording(name)
+    rotation = transform[:2, :2]
+    return {
+        h5_name: _projected_direction_name(*(rotation @ np.asarray(vector, dtype=float)))
+        for h5_name, vector in STIMULUS_BAR_DIRECTION_VECTORS.items()
+    }
+
+
+def moving_bar_direction_names(name) -> np.ndarray:
+    """Projected direction of each block of the 8-direction moving bar, in presentation
+    order (MOVING_BAR_STIMULUS_ORDER), for the recording in `name`.
+    Before 8 Oct 2026: up, down, right, left, up-right, down-right, up-left, down-left.
+    From 8 Oct 2026:   up, down, left, right, up-left, down-left, up-right, down-right."""
+    table = moving_bar_direction_table(name)
+    return np.array([table[h5_name] for h5_name in MOVING_BAR_STIMULUS_ORDER])
+
+
+def moving_bar_directions_deg(direction_names) -> np.ndarray:
+    """Polar angles (0° = up, clockwise) for projected direction names."""
+    return np.array([PROJECTED_DIRECTION_DEG[str(n)] for n in direction_names], dtype=float)
+
+
+def rf_angle_to_polar_orientation_deg(rf_angle_deg, name) -> np.ndarray:
+    """RF long-axis `angle` from noise_data_v2.nc -> the moving-bar polar-plot convention,
+    so it can be compared directly with `preferred_orientation_deg` (0-180°).
+
+    ORIENTATION [RF ANGLE -> POLAR] `angle` is in the STIMULUS frame (0° = +x / right,
+    increasing towards +y / down, 0-180°). The polar plots are in the PROJECTED frame
+    (0° = up, clockwise). The long-axis vector is put through this recording's
+    stimulus -> projection transform (changed 8 Oct 2026), so it works out as:
+      before 8 Oct 2026:  polar = (180 - angle) % 180
+      from 8 Oct 2026:    polar = angle % 180      (same number)
+    The result is an AXIS (0-180°): it compares with preferred_orientation_deg (the axis
+    the bar moves along), not with the 0-360° preferred direction.
+    """
+    transform, _ = stimulus_to_projection_for_recording(name)
+    rotation = transform[:2, :2]
+    a = np.deg2rad(np.asarray(rf_angle_deg, dtype=float))
+    stim = np.stack([np.cos(a), np.sin(a)])  # (x right, y down) in the stimulus frame
+    dx, dy = np.tensordot(rotation, stim, axes=1)  # projected frame, +y down
+    # Compass angle: 0° = up (-y), 90° = right (+x).
+    polar = np.degrees(np.arctan2(dx, -dy)) % 180.0
+    return np.where(np.isclose(polar, 180.0), 0.0, polar)
+
+
+def orientation_difference_deg(a_deg, b_deg) -> np.ndarray:
+    """Smallest angle between two axes (0-90°); 0 = parallel, 90 = perpendicular."""
+    d = np.abs(np.asarray(a_deg, dtype=float) - np.asarray(b_deg, dtype=float)) % 180.0
+    return np.minimum(d, 180.0 - d)
+
+
 def read_noise_params(noise_analysis_folder) -> list[dict]:
     """
     The noise_params.json of every RF channel of a recording.

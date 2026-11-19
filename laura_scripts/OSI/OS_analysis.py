@@ -9,6 +9,12 @@ import numpy as np
 import polars as pl
 import xarray as xr
 from loading.noise_data import load_noise_data  # v2 RF dataset, checked
+from laura_scripts.Alignment_pipeline.alignment_geometry import (
+    moving_bar_direction_names,
+    moving_bar_directions_deg,
+    orientation_difference_deg,
+    rf_angle_to_polar_orientation_deg,
+)
 
 # %%
 # FOR MOVING_BAR and MOVING_BAR_TINY (existing stimuli) they are only 600x600 or 800x800 pixels respectively.
@@ -180,6 +186,10 @@ single_cell_id = 12
 #     ]
 # )
 # corrected for open GL change in coordinates and projector flip
+# ORIENTATION [MOVING BAR DIRECTIONS] These fixed tables are only right for recordings
+# BEFORE 8 Oct 2026. The run loop below uses the table for each recording's date
+# (alignment_geometry.moving_bar_direction_names(recording_id)); from 8 Oct 2026 the
+# block order is up, down, left, right, up-left, down-left, up-right, down-right.
 DIRECTION_NAMES = np.array(
     [
         "up",
@@ -448,11 +458,47 @@ def get_cell_quality_and_tilt(dataset, cell_id, rf_channel):
 
     tilt = transform_tilt(raw_tilt)
 
+    # RF long-axis angle as stored (STIMULUS frame: 0° = right, towards down, 0-180°).
+    # add_rf_orientation() converts it to the polar-plot / aligned-cone-image frame.
+    rf_angle_deg = (
+        float(dataset["angle"].sel(cell_index=cell_id, channel=rf_channel).values)
+        if "angle" in dataset
+        else np.nan
+    )
+
     return {
         "quality": quality,
         "raw_tilt": raw_tilt,
         "tilt": tilt,
+        "rf_angle_deg": rf_angle_deg,
     }
+
+
+def add_rf_orientation(result, recording_id):
+    """Add the RF long axis in the polar-plot frame and its difference from the bar tuning.
+
+    ORIENTATION [RF ANGLE -> POLAR] rf_orientation_polar_deg is the RF long axis in the
+    same frame as the polar plots and the aligned cone image / RF alignment figures
+    (0° = up, clockwise, 0-180°), via the recording's date-dependent
+    stimulus -> projection transform (alignment_geometry.rf_angle_to_polar_orientation_deg).
+    rf_vs_bar_orientation_diff_deg_*: 0° = RF long axis parallel to the preferred motion
+    axis, 90° = perpendicular (i.e. parallel to the preferred bar edge).
+    """
+    rf_angle = result.get("rf_angle_deg", np.nan)
+    rf_polar = (
+        float(rf_angle_to_polar_orientation_deg(rf_angle, recording_id))
+        if np.isfinite(rf_angle)
+        else np.nan
+    )
+    result["rf_orientation_polar_deg"] = rf_polar
+    for metric in ["peak_response", "total_spikes"]:
+        bar_axis = result.get(f"preferred_orientation_deg_{metric}", np.nan)
+        result[f"rf_vs_bar_orientation_diff_deg_{metric}"] = (
+            float(orientation_difference_deg(rf_polar, bar_axis))
+            if np.isfinite(rf_polar) and np.isfinite(bar_axis)
+            else np.nan
+        )
+    return result
 
 
 # %% ============================================================================
@@ -808,6 +854,7 @@ def calculate_tuning_for_cell(
         "quality": cell_info["quality"],
         "raw_tilt": cell_info["raw_tilt"],
         "tilt": cell_info["tilt"],
+        "rf_angle_deg": cell_info["rf_angle_deg"],
         "direction_names": direction_names,
         "directions_deg": directions_deg,
         "spike_counts": spike_counts,
@@ -996,6 +1043,14 @@ def make_results_dataframe(results):
                 "quality": result["quality"],
                 "raw_tilt": result["raw_tilt"],
                 "tilt": result["tilt"],
+                "rf_angle_deg_stimulus": result.get("rf_angle_deg", np.nan),
+                "rf_orientation_polar_deg": result.get("rf_orientation_polar_deg", np.nan),
+                "rf_vs_bar_orientation_diff_deg_peak_response": result.get(
+                    "rf_vs_bar_orientation_diff_deg_peak_response", np.nan
+                ),
+                "rf_vs_bar_orientation_diff_deg_total_spikes": result.get(
+                    "rf_vs_bar_orientation_diff_deg_total_spikes", np.nan
+                ),
                 "n_spikes": result["n_spikes"],
                 "OSI_peak_response": result["OSI_peak_response"],
                 "DSI_peak_response": result["peak_opposite_DSI_peak_response"],
@@ -1035,6 +1090,19 @@ def build_scatter_dataframe(results, response_metric):
                 "global_cell_id": result["global_cell_id"],
                 "tilt": result["tilt"],
                 "raw_tilt": result["raw_tilt"],
+                "rf_orientation_polar_deg": result.get("rf_orientation_polar_deg", np.nan),
+                "preferred_orientation_deg": metric["preferred_orientation_deg"],
+                "rf_vs_bar_orientation_diff_deg": (
+                    float(
+                        orientation_difference_deg(
+                            result["rf_orientation_polar_deg"],
+                            metric["preferred_orientation_deg"],
+                        )
+                    )
+                    if np.isfinite(result.get("rf_orientation_polar_deg", np.nan))
+                    and np.isfinite(metric["preferred_orientation_deg"])
+                    else np.nan
+                ),
                 "OSI": metric["OSI"],
                 "DSI": metric["DSI"],
                 "quality": result["quality"],
@@ -1205,6 +1273,7 @@ def analyse_one_dataset(
                 result["overview_path"] = overview_path
                 result["noise_data_path"] = str(noise_data_path)
                 result["stimulus_index"] = stimulus_index
+                add_rf_orientation(result, recording_id)
                 result["rf_channel"] = rf_channel
 
                 dataset_results.append(result)
@@ -1286,6 +1355,7 @@ def plot_pooled_polar_tuning(
     show_peak_direction_line=True,
     show_orientation_axis=True,
     show_motion_direction_arrows=True,
+    show_rf_axis=True,
 ):
     metric = get_response_metric_for_plot(
         result=result,
@@ -1359,6 +1429,21 @@ def plot_pooled_polar_tuning(
                     alpha=0.7,
                 )
 
+    # ORIENTATION [RF ANGLE -> POLAR] RF long axis drawn in the same frame as the tuning
+    # curve and the aligned cone image (0° = up, clockwise); solid black, both ends.
+    rf_axis_deg = result.get("rf_orientation_polar_deg", np.nan)
+    if show_rf_axis and np.isfinite(rf_axis_deg) and np.isfinite(max_rate) and max_rate > 0:
+        for end_deg in (rf_axis_deg, rf_axis_deg + 180):
+            ax.plot(
+                [np.deg2rad(end_deg), np.deg2rad(end_deg)],
+                [0, max_rate],
+                linewidth=1.6,
+                linestyle="-",
+                color="black",
+                alpha=0.8,
+                label="RF long axis" if end_deg == rf_axis_deg else None,
+            )
+
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
     ax.set_rlabel_position(-22.5)
@@ -1387,7 +1472,8 @@ def plot_pooled_polar_tuning(
             f"OSI={metric['OSI']:.2f}, "
             f"DSI={metric['DSI']:.2f}\n"
             f"Q={result['quality']:.1f}, "
-            f"tilt={result['tilt']:.2f}",
+            f"tilt={result['tilt']:.2f}, "
+            f"RF axis={result.get('rf_orientation_polar_deg', np.nan):.0f}°\n"
             f"Bin size={peak_response_bin_size_s}s",
             fontsize=8,
         )
@@ -1938,6 +2024,12 @@ for config in selected_dataset_configs:
 all_pooled_results = []
 
 for config in selected_dataset_configs:
+    # ORIENTATION [MOVING BAR DIRECTIONS] direction of each 300-frame block for this
+    # recording's date (the stimulus -> projection transform changed on 8 Oct 2026).
+    direction_names = moving_bar_direction_names(config["recording_id"])
+    directions_deg = moving_bar_directions_deg(direction_names)
+    print(f"{config['recording_id']}: moving-bar directions {list(direction_names)}")
+
     dataset_results = analyse_one_dataset(
         config=config,
         direction_names=direction_names,
