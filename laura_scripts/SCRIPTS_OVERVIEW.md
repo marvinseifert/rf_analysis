@@ -74,6 +74,19 @@ Uses the dragonfly (sws1 mCherry) images.
 | `ff_plots_by_tilt.py` | Full-field flash (SCF) responses grouped by RF elongation. |
 | `elongation_cells_poster.py` | Poster panel of the most elongated RFs, pooled across recordings. |
 
+#### `Elongated receptive fields/RF_cone_row_angle_prediction/`: RF orientation vs predicted cone rows (19 Nov 2026)
+
+Cone rows are assumed to radiate from the optic nerve head (ONH); each RF's long axis is compared with the line ONH -> RF centre. Final figure: Box `Figures/RF_cone_row_angle_prediction/FINAL/`.
+
+| Script | What it does |
+|---|---|
+| `click_optic_nerve_head.py` | Click the ONH on a recording's cone image (`--recording DD_MM_YYYY`); saves to `optic_nerve_head_positions.json`. |
+| `rf_cone_row_angle.py` | Shared loading/geometry (RF centres and axes, ONH and row direction in the aligned cone-image frame, edge flag); run on its own it writes the per-cell table `rf_vs_cone_row_angle_all_recordings_cells.csv`. |
+| `summary_figure.py` | The final summary figure (landscape): cone images + covariance RFs, RF axes vs radiating rows, histograms, across-recording test, pooled elongated/round histograms. |
+| `supporting_analyses/rf_orientation_field.py` | Smoothed RF orientation field vs circles around the ONH, with a shuffle test (source of 14/05 p = 0.027). |
+| `supporting_analyses/rf_position_arc_test.py` | Do RF centres line up in arcs around the ONH (neighbour-pair test, calibrated on synthetic data)? No consistent effect. |
+| `supporting_analyses/check_rf_angle_reliability.py` | Stored RF angle vs an independent map measurement, and same cell across noise stimuli vs different cells. |
+
 ### `OSI/`: moving-bar direction and orientation selectivity
 
 The bar directions are chosen by recording date. In some recordings the moving bar may not have covered the whole array.
