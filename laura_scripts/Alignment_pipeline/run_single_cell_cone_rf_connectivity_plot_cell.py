@@ -57,12 +57,12 @@ path_to_data = Path(
 
 # Exact Image 1 cone image used in the alignment pipeline.
 image_1_cones_path = Path(
-    r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260515_dragonfly_microscope/15_05_2026_cones.jpg"
+    r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260515_dragonfly_microscope/15_05_2026_p0_cones_flipped.jpg"
 )
 
 # .npz cache produced by the alignment pipeline.
 alignment_cache_path = Path(
-    rf"/mnt/mea_nas/Laura/zebrafish_15_05_2026/alignment_videos/{recording_name}_alignment_cache_v2.npz"
+    rf"/mnt/mea_nas/Laura/zebrafish_15_05_2026/15_05_2026_alignment_videos/{recording_name}_alignment_cache_v2.npz"
 )
 
 output_dir = path_to_data.parent / "single_cell_cone_connectivity"

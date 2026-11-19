@@ -32,13 +32,13 @@ rec_object = Recording_Config(
 
 rec_object.add_channel(
     stimulus_id=15,
-    name="12px_20Hz_25mins_shuffle_x12_white",
+    name="12px_20Hz_25mins_shuffle_white",
     colour="red",
 )
 
 rec_object.add_channel(
     stimulus_id=19,
-    name="12px_20Hz_25mins_shuffle_x12_repeat_white",
+    name="12px_20Hz_25mins_shuffle_repeat_white",
     colour="red",
 )
 
@@ -270,7 +270,7 @@ def plot_individual_vs_combined_rms_from_kernel(
 
 # %%
 combined_kernel_path = Path(
-    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/combined_kernels_idx_20"
+    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/combined_kernels"
 )
 
 plot_individual_vs_combined_rms_from_kernel(
@@ -279,8 +279,8 @@ plot_individual_vs_combined_rms_from_kernel(
     combined_kernel_path=combined_kernel_path,
     cells_to_plot=[1, 10],
     individual_channels=[
-        "12px_20Hz_25mins_shuffle_x12_white",
-        "12px_20Hz_25mins_shuffle_x12_repeat_white",
+        "12px_20Hz_25mins_shuffle_white",
+        "12px_20Hz_25mins_shuffle_repeat_white",
     ],
     individual_stimulus_ids=[15, 19],
     combined_label="12px_20Hz_50mins_white_combined",

@@ -2853,10 +2853,10 @@ config = PlotConfig(
     overview_path=Path(r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00/overview"),
     noise_data_path=NOISE_DATA_PATH,
     cone_image_path=Path(
-        r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260722_dragonfly_microscope/cones(MAX_FLIPPED)_2026_07_22.jpg"
+        r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260722_dragonfly_microscope/22_07_2026_p0_cones_flipped.jpg"
     ),
     alignment_cache_path=Path(
-        r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/alignment_videos/zebrafish_22_07_2026_phase_00_alignment_cache_v2.npz"
+        r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/22_07_2026_alignment_videos/zebrafish_22_07_2026_phase_00_alignment_cache_v2.npz"
     ),
     # v2 figures go to their own folder, so the old ones are not overwritten.
     output_dir=Path(r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00/separate_cell_plots_v2"),

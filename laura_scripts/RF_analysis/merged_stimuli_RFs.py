@@ -43,19 +43,19 @@ rec_object.add_channel(
 
 rec_object.add_channel(
     stimulus_id=11,
-    name="12px_20Hz_25mins_shuffle_x12_repeat_365",
+    name="12px_20Hz_25mins_shuffle_repeat_365",
     colour="green",
 )
 
 rec_object.add_channel(
     stimulus_id=15,
-    name="12px_20Hz_25mins_shuffle_x12_white",
+    name="12px_20Hz_25mins_shuffle_white",
     colour="red",
 )
 
 rec_object.add_channel(
     stimulus_id=19,
-    name="12px_20Hz_25mins_shuffle_x12_repeat_white",
+    name="12px_20Hz_25mins_shuffle_repeat_white",
     colour="red",
 )
 
@@ -272,8 +272,8 @@ def calculate_combined_sta_rfs(
         Example:
         {
             "12px_20Hz_50mins_white_combined": [
-                "12px_20Hz_25mins_shuffle_x12_white",
-                "12px_20Hz_25mins_shuffle_x12_repeat_white",
+                "12px_20Hz_25mins_shuffle_white",
+                "12px_20Hz_25mins_shuffle_repeat_white",
             ],
         }
 
@@ -752,8 +752,8 @@ combined_ds = calculate_combined_sta_rfs(
     cell_ids=cell_ids,
     channel_groups={
         "12px_20Hz_50mins_white_combined": [
-            "12px_20Hz_25mins_shuffle_x12_white",
-            "12px_20Hz_25mins_shuffle_x12_repeat_white",
+            "12px_20Hz_25mins_shuffle_white",
+            "12px_20Hz_25mins_shuffle_repeat_white",
         ],
     },
     qi_limit=20,
@@ -972,8 +972,8 @@ plot_individual_vs_combined_rfs(
     combined_ds=combined_ds,
     cells_to_plot=cell_ids,
     individual_channels=[
-        "12px_20Hz_25mins_shuffle_x12_white",
-        "12px_20Hz_25mins_shuffle_x12_repeat_white",
+        "12px_20Hz_25mins_shuffle_white",
+        "12px_20Hz_25mins_shuffle_repeat_white",
     ],
     combined_channel="12px_20Hz_50mins_white_combined",
     rf_type="covariance  ",  # can change to "covariance"

@@ -7,10 +7,10 @@ from tqdm import tqdm
 
 # Load folder paths for each channel
 path_a = Path(
-    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/12px_20Hz_25mins_shuffle_x12_white_idx_15"
+    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/12px_20Hz_25mins_shuffle_white_idx_15"
 )
 path_b = Path(
-    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/12px_20Hz_25mins_shuffle_x12_repeat_white_idx_19"
+    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/12px_20Hz_25mins_shuffle_white_repeat_idx_19"
 )
 
 # Create output path

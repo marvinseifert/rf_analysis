@@ -74,10 +74,10 @@ RECORDINGS = [
             r"/mnt/mea_nas/Laura/zebrafish_14_08_2026" r"/Phase_00/fff_analysis/fff_data_v2.nc"
         ),
         "CONE_IMAGE_PATH": Path(
-            r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260814_dragonfly_microscope/14_08_2026_cones.tif"
+            r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260814_dragonfly_microscope/14_08_2026_p0_cones_flipped.jpg"
         ),
         "ALIGNMENT_CACHE_PATH": Path(
-            r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/alignment_videos/zebrafish_14_08_2026_phase_00_alignment_cache_v2.npz"
+            r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/14_08_2026_alignment_videos/zebrafish_14_08_2026_phase_00_alignment_cache_v2.npz"
         ),
     },
     {
@@ -86,10 +86,10 @@ RECORDINGS = [
             r"/mnt/mea_nas/Laura/zebrafish_22_07_2026" r"/Phase_00/fff_analysis/fff_data_v2.nc"
         ),
         "CONE_IMAGE_PATH": Path(
-            r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260722_dragonfly_microscope/22_07_2026_cones.jpg"
+            r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260722_dragonfly_microscope/22_07_2026_p0_cones_flipped.jpg"
         ),
         "ALIGNMENT_CACHE_PATH": Path(
-            r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/alignment_videos/zebrafish_22_07_2026_phase_00_alignment_cache_v2.npz"
+            r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/22_07_2026_alignment_videos/zebrafish_22_07_2026_phase_00_alignment_cache_v2.npz"
         ),
     },
     {
@@ -98,10 +98,10 @@ RECORDINGS = [
             r"/mnt/mea_nas/Laura/zebrafish_15_05_2026" r"/Phase_00/fff_analysis/fff_data_v2.nc"
         ),
         "CONE_IMAGE_PATH": Path(
-            r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260515_dragonfly_microscope/15_05_2026_cones.jpg"
+            r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260515_dragonfly_microscope/15_05_2026_p0_cones_flipped.jpg"
         ),
         "ALIGNMENT_CACHE_PATH": Path(
-            r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/alignment_videos/zebrafish_15_05_2026_phase_00_alignment_cache_v2.npz"
+            r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/15_05_2026_alignment_videos/zebrafish_15_05_2026_phase_00_alignment_cache_v2.npz"
         ),
     },
     {
@@ -110,10 +110,10 @@ RECORDINGS = [
             r"/mnt/mea_nas/Laura/zebrafish_14_05_2026" r"/Phase_00/fff_analysis/fff_data_v2.nc"
         ),
         "CONE_IMAGE_PATH": Path(
-            r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260514_dragonfly_microscope/14_05_2026_cones.jpg"
+            r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260514_dragonfly_microscope/14_05_2026_p0_cones_flipped.jpg"
         ),
         "ALIGNMENT_CACHE_PATH": Path(
-            r"/mnt/mea_nas/Laura/zebrafish_14_05_2026/alignment_videos/zebrafish_14_05_2026_phase_00_alignment_cache_v2.npz"
+            r"/mnt/mea_nas/Laura/zebrafish_14_05_2026/14_05_2026_alignment_videos/zebrafish_14_05_2026_phase_00_alignment_cache_v2.npz"
         ),
     },
 ]

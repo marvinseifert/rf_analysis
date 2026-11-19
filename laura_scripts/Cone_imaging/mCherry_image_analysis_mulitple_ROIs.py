@@ -15,7 +15,7 @@ from scipy.spatial import cKDTree
 # User settings
 # =============================================================================
 
-IMAGE_PATH = r"/home/laura/Box/SUSSEX/Experiments/Zebrafish MEA + imaging/20260225_dragonfly_microscope_test/overlays/tissue_with_grid.tif"
+IMAGE_PATH = r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260225_dragonfly_microscope/overlays/tissue_with_grid.tif"
 EXPECTED_PITCH_UM = 100.0  # adjacent electrode centre-to-centre spacing
 N_ROIS = 3
 

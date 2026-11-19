@@ -11,7 +11,7 @@ from loading.noise_data import load_noise_data  # v2 RF dataset, checked
 # %% Dataset paths
 dataset_paths = {
     # "dataset_1": Path(
-    #     r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_00/noise_analysis/noise_data_v2.nc"
+    #     r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/noise_data_v2.nc"
     # ),
     "dataset_2": Path(
         r"/mnt/mea_nas/Laura/zebrafish_05_11_2025/Phase_01/noise_analysis/noise_data_v2.nc"

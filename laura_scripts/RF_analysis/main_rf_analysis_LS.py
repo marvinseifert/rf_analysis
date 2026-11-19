@@ -27,7 +27,7 @@ dataset = load_noise_data(path_to_data)
 # combined = xr.concat(datasets, dim=pd.Index(names, name="date"))
 
 # %% Set dataset, channel and qi_limit
-channel = "12px_20Hz_25mins_shuffle_x12_white"
+channel = "12px_20Hz_25mins_shuffle_white"
 qi_limit = 20
 # # Load quality file
 quality = dataset["quality"]

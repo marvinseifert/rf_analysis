@@ -8,7 +8,7 @@ import numpy as np
 import os
 
 # Set output directory (may need to change this)
-out_dir = r"/home/laura/Box/SUSSEX/Experiments/Zebrafish MEA + imaging/20260414_dragonfly_microscope/overlays"
+out_dir = r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260414_dragonfly_microscope/overlays"
 # Or create folder if it doesn't exist
 os.makedirs(out_dir, exist_ok=True)
 
@@ -97,7 +97,7 @@ radius_px = int(
 # %% Load images
 # Electrode image
 electrode_img = cv2.imread(
-    r"/home/laura/Box/SUSSEX/Experiments/Zebrafish MEA + imaging/20260421_dragonfly_microscope/SUM_brightfield.tif",
+    r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260421_dragonfly_microscope/SUM_brightfield.tif",
     cv2.IMREAD_UNCHANGED,
 )
 print(electrode_img.dtype)  # check dtype, should be uint8
@@ -105,7 +105,7 @@ print(electrode_img.dtype)  # check dtype, should be uint8
 
 # Tissue image
 tissue_img = cv2.imread(
-    r"/home/laura/Box/SUSSEX/Experiments/Zebrafish MEA + imaging/20260421_dragonfly_microscope/MAX_confocal.tif",
+    r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260421_dragonfly_microscope/MAX_confocal.tif",
     cv2.IMREAD_UNCHANGED,
 )
 h, w = electrode_img.shape[

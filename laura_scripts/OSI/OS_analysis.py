@@ -32,7 +32,7 @@ dataset_configs = [
         "overview_path": r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/overview",
         "noise_data_path": r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/noise_analysis/noise_data_v2.nc",
         "stimulus_index": 4,  # moving bar stim
-        "rf_channel": "12px_20Hz_25mins_shuffle_x12_white",
+        "rf_channel": "12px_20Hz_25mins_shuffle_white",
     },
     # # Add more datasets here.
     # {
@@ -2394,17 +2394,28 @@ if plot_single_cell_example:
 # Plot one cell after the script has run
 # ============================================================================
 
-single_result = plot_cell(
-    cell_id_to_plot=13,
-    recording_id="15_05_2026_p0",
-    response_metric="peak_response",
-)
+# Uses single_cell_recording_id / single_cell_id from the settings at the top. If that
+# cell was not analysed in this run (e.g. a different recording was run), the cell with
+# the highest OSI (peak response) among those passing the filters (quality, spikes) is
+# plotted instead.
+example_cell = None
+if (single_cell_recording_id, int(single_cell_id)) in results_by_recording_and_cell:
+    example_cell = (single_cell_recording_id, int(single_cell_id))
+elif filtered_df is not None and len(filtered_df) > 0:
+    best = filtered_df.sort_values("OSI_peak_response", ascending=False).iloc[0]
+    example_cell = (str(best["recording_id"]), int(best["cell_index"]))
+    print(
+        f"Cell {single_cell_id} of {single_cell_recording_id!r} was not analysed in this "
+        f"run; plotting the highest-OSI cell passing the filters instead: {example_cell}"
+    )
 
-single_result = plot_cell(
-    cell_id_to_plot=13,
-    recording_id="15_05_2026_p0",
-    response_metric="total_spikes",
-)
+if example_cell is not None:
+    for metric_name in ["peak_response", "total_spikes"]:
+        single_result = plot_cell(
+            cell_id_to_plot=example_cell[1],
+            recording_id=example_cell[0],
+            response_metric=metric_name,
+        )
 
 
 # %% ============================================================================
