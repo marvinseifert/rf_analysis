@@ -18,17 +18,15 @@ from laura_scripts.Alignment_pipeline.alignment_geometry import (
 )
 
 # %%
-# FOR MOVING_BAR and MOVING_BAR_TINY (existing stimuli), the stimulus may not cover
-# the full array. A recording can therefore optionally be restricted to a saved list
-# of cells whose RF centres fall inside the stimulated region.
+# NOTE (19/11/2026): ALL cells are analysed. In some recordings the moving bar may
+# accidentally not have covered the whole array (e.g. MOVING_BAR 800 x 800 or
+# MOVING_BAR_TINY 600 x 600 stimulus px), so some cells (RFs near the edge of the array)
+# may never have been crossed by the bar and will look unresponsive or untuned. This is
+# accepted; cells are not filtered by RF position.
 #
-# Set central_cells_path inside each dataset config:
-#   Path(...) = analyse only cells in that saved .npy list
-#   None      = analyse all available cells for that recording
-#
-# For 15_05_2026:
-#   300px list = moving bar
-#   400px list = moving bar tiny
+# The optional per-dataset central_cells_path (a saved .npy list of cell numbers) is
+# kept but set to None: the old 15/05 lists (…_central_RF_cells_300px / _400px.npy) were
+# only on the Windows F: drive and were made from v1 RF positions.
 
 # %% Dataset settings
 
@@ -39,11 +37,7 @@ dataset_configs = [
         "noise_data_path": r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00/noise_analysis/noise_data_v2.nc",
         "stimulus_index": 4,  # change moving bar stimulus here
         "rf_channel": "12px_20Hz_25mins_shuffle_x12_white",
-        "central_cells_path": Path(
-            r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00"
-            r"/noise_analysis"
-            r"/zebrafish_15_05_2026_phase_00_central_RF_cells_300px.npy"
-        ),  # or None
+        "central_cells_path": None,  # all cells (see the note at the top)
     },
     # # Add more datasets here.
     # {

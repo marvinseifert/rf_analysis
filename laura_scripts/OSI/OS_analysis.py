@@ -18,23 +18,11 @@ from laura_scripts.Alignment_pipeline.alignment_geometry import (
 )
 
 # %%
-# FOR MOVING_BAR and MOVING_BAR_TINY (existing stimuli) they are only 600x600 or 800x800 pixels respectively.
-# These do not cover the full array, especially the 600x600 pixels.
-# Therefore, want to generate a list of cells that are actually exposed to the stimuli.
-# This is generated in the alignment pipeline re-written script, and is specifically for 15_05_2026 currently.
-# The one ending in 400px is for tiny moving bar, and the one ending in 300px is for moving bar.
-central_cells_path = Path(
-    r"/mnt/mea_nas/Laura/zebrafish_15_05_2026/Phase_00"
-    r"/noise_analysis"
-    r"/zebrafish_15_05_2026_phase_00_central_RF_cells_300px.npy"
-)
-
-# Not used further in this script. The .npy was only on the old Windows F: drive, so it
-# is loaded only if present (OS_analysis_stimulus_filtered_cells.py uses these lists).
-central_cell_ids = np.load(central_cells_path) if central_cells_path.exists() else None
-
-print(central_cell_ids)
-print(type(central_cell_ids))
+# NOTE (19/11/2026): ALL cells are analysed. In some recordings the moving bar may
+# accidentally not have covered the whole array (e.g. MOVING_BAR 800 x 800 or
+# MOVING_BAR_TINY 600 x 600 stimulus px), so some cells (RFs near the edge of the array)
+# may never have been crossed by the bar and will look unresponsive or untuned. This is
+# accepted; cells are not filtered by RF position.
 
 # %% Dataset settings
 
