@@ -68,6 +68,21 @@ Started on 14/08/2026, 6px noise (12 µm pixels shuffled in 2 µm steps). Figure
 | `check_duplicate_units.py` | Checks whether two cells are one neuron counted twice: shared spikes, firing together at 0 lag, peak electrode, template and STA similarity. |
 | `plot_neighbour_rf_overlap.py` | A cell plus its 1, 2 and 3 nearest neighbours: the actual RF maps overlaid in colour, plus a figure with the RFs in greyscale and overlapping pixels coloured (also shown on the cones). |
 
+### `SNMF/`: testing sNMF / subunits against fair noise controls (20 Nov 2026)
+
+14/08/2026 6px shuffled noise, using the per-cell `snippets.h5` from rf_torch `main_sta_snippets_all.py`. Result: RF shapes reproduce in independent halves (reliable to ~19 µm detail in cell 150), but no structure smaller than the RF beats chance. Two traps found: the shuffle makes even pure-noise sNMF modules smooth (Moran's I cut-off useless), and the 30-min sequence is played 3× identically (any spike split shares frames: split by half of the noise *sequence* instead). Figures go to Box `Figures/SNMF/`. Run with `MPLBACKEND=Agg`, one at a time.
+
+| Script | What it does |
+|---|---|
+| `random_control_snippets.py` | Control snippets for chosen cells: random times (`--mode random`) or the cell's real spike train shifted in time (`--mode shifted`, keeps bursts; the fair control). `--seed` for independent sets. Saves under new names, never touches the real snippets. |
+| `snmf_real_vs_random.py` | sNMF (as `s_nmf/gollisch_pipeline.py`) on real spikes vs random times; Moran's I of every module. Crops zero-filled edge columns. |
+| `snmf_one_time_course.py` | Same, but one time course for all pixels (removes the RF imprint) and two ways of judging modules: (a) shape vs random modules, (b) use before spikes. |
+| `snmf_consistency.py` | Split-half reproducibility of sNMF modules for several r, real vs random (note: random halves share frames because of the 3 repeats). |
+| `stc_minus_random.py` | Spike-triggered covariance minus control covariance (cancels the shuffle correlation); `--control shifted`, `--crop-um`. Chance from two control sets. |
+| `split_half_blobs.py` | RF map from two halves of the spikes (recording halves, and independent noise-sequence halves) and whether the blobs come back; shifted spike train as chance. |
+| `rf_resolution_test.py` | Fourier ring correlation of two independent half-maps: the finest detail size that is reliable. |
+| `plot_bar_stimulus_design.py` | Design sketch (no data): random-bar stimuli (single bar, few bars, 1D flickering bars across / along the cone rows) on a schematic mosaic. |
+
 ### `Cone_imaging/`: cone mosaic spacing
 
 Uses the dragonfly (sws1 mCherry) images.
