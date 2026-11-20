@@ -12,6 +12,9 @@ Second figure (..._overlap_pixels_...), same cells and zoom, added 20/11/2026:
   row 1: all RFs in greyscale (each scaled to its own peak; brightest RF per pixel), pixels inside
          >= 2 RFs coloured by how many (an RF = pixels >= --overlap-threshold of its own peak)
   row 2: the same overlap pixels on the grey cone image
+  Each RF is first smoothed by --overlap-smooth-um (default 3 µm, added 20/11/2026; 0 = raw pixels).
+  Smoothing alone makes blobs ~that size, so only blobs clearly bigger than it that sit on cones
+  mean something.
 Neighbours = nearest RF centres (`positions`) in the projected frame. Same zoom for all panels.
 View from the door; stimulus -> projection only via A_raw_rf_to_projected_um.
 
@@ -66,6 +69,8 @@ parser.add_argument("--n-neighbours", type=int, default=3)
 parser.add_argument("--rf-alpha", type=float, default=0.6)
 parser.add_argument("--overlap-threshold", type=float, default=0.3,
                     help="a pixel belongs to an RF if it is >= this fraction of that RF's own peak (overlap figure)")
+parser.add_argument("--overlap-smooth-um", type=float, default=3.0,
+                    help="Gaussian smoothing (sigma, µm) of each RF before greyscale + overlap (0 = none)")
 args = parser.parse_args()
 
 # ------------------------------------------------------------ geometry
@@ -218,7 +223,19 @@ from matplotlib.colors import ListedColormap  # noqa: E402
 
 OVERLAP_COLOURS = {2: "yellow", 3: "tab:orange", 4: "red"}  # number of RFs sharing a pixel
 thr = args.overlap_threshold
-pos_maps = {c: np.clip(np.nan_to_num(maps[c]), 0, None) for c in cells}
+from scipy import ndimage  # noqa: E402
+
+
+def smoothed_positive(m):
+    """Positive part of the RF; optionally smoothed, then rescaled so its own peak is 1 again."""
+    v = np.clip(np.nan_to_num(m), 0, None)
+    if args.overlap_smooth_um > 0:
+        v = ndimage.gaussian_filter(v, args.overlap_smooth_um / step)
+        v = v / v.max() if v.max() > 0 else v
+    return v
+
+
+pos_maps = {c: smoothed_positive(maps[c]) for c in cells}
 
 fig, axes = plt.subplots(2, n, figsize=(4.2 * n, 8.9), facecolor="white")
 for k in range(n):
@@ -254,11 +271,14 @@ ax.text(x0 + 0.06 * w + 25, y0 - 0.1 * w, "50 µm", color="white", ha="center", 
 handles = [Line2D([], [], color=col, lw=6, label=f"{i} RFs overlap") for i, col in OVERLAP_COLOURS.items()][:max(1, n - 1)]
 fig.legend(handles=handles, loc="lower center", ncol=len(handles), fontsize=9, frameon=False, bbox_to_anchor=(0.5, -0.01),
            title=f"Cells in order: {', '.join(str(c) for c in cells)}.  Grey = RF strength (each cell scaled to its own peak).  "
-                 f"A pixel is part of an RF if it is ≥ {thr:.0%} of that RF's peak.", title_fontsize=9)
+                 f"A pixel is part of an RF if it is ≥ {thr:.0%} of that RF's peak"
+                 + (f"; each RF smoothed by {args.overlap_smooth_um:g} µm first." if args.overlap_smooth_um > 0 else "."),
+           title_fontsize=9)
 fig.suptitle(f"{args.recording.replace('_', '/')}  ·  {args.channel}  ·  where neighbouring RFs overlap  ·  view from the door",
              fontsize=11)
 fig.subplots_adjust(left=0.01, right=0.99, top=0.92, bottom=0.08, wspace=0.05, hspace=0.12)
-stem = f"neighbour_rf_overlap_pixels_cell_{focal}_{args.recording}_{args.channel}"
+stem = (f"neighbour_rf_overlap_pixels_cell_{focal}_{args.recording}_{args.channel}"
+        + (f"_smooth{args.overlap_smooth_um:g}um" if args.overlap_smooth_um > 0 else ""))
 for fmt in ("png", "pdf"):
     out = OUTPUT_FOLDER / f"{stem}.{fmt}"
     fig.savefig(out, dpi=200 if fmt == "png" else None, bbox_inches="tight")
