@@ -56,6 +56,18 @@ Early electrode-alignment prototypes from March/April 2026. Most of their data i
 | `MEA_electrode_image_analysis_MS.py` | Makes a mean image from the projection video and tests electrode autocorrelation. |
 | `electrode_overlay_analysis.py` | Draws a synthetic 100 µm electrode grid over the tissue image. |
 
+### `6px_subunit_exploration/`: looking for cone / subunit input in single RFs (20 Nov 2026)
+
+Started on 14/08/2026, 6px noise (12 µm pixels shuffled in 2 µm steps). Figures go to Box `Figures/RF_cone_alignment_v2/`. Run with `MPLBACKEND=Agg`.
+
+| Script | What it does |
+|---|---|
+| `plot_cells_with_stas.py` | Top-N quality cells (covariance and RMS) and the most "subunit-like" cells on the cone mosaic, each with its STAs: single pixel and the top 3 % weighted STA from `RF_analysis/weighted_STA.py`. All panels are centred on the pipeline RF centre. |
+| `subunit_tools.py` | Shared "subunit" score: counts separate peaks in the RF centre that rise clearly above the map's noise. |
+| `compare_6px_8px_subunit_cells.py` | Checks whether the small spots in each RF repeat between the 6px and 8px noise, against a rotated-map chance level. |
+| `check_duplicate_units.py` | Checks whether two cells are one neuron counted twice: shared spikes, firing together at 0 lag, peak electrode, template and STA similarity. |
+| `plot_neighbour_rf_overlap.py` | A cell plus its 1, 2 and 3 nearest neighbours: the actual RF maps overlaid in colour, plus a figure with the RFs in greyscale and overlapping pixels coloured (also shown on the cones). |
+
 ### `Cone_imaging/`: cone mosaic spacing
 
 Uses the dragonfly (sws1 mCherry) images.

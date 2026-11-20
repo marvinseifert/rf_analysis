@@ -2,7 +2,7 @@
 #   * reads noise_data_v2.nc (RF maps in stimulus coordinates, corrected sizes/angles)
 #   * weight/mask maps (stored x, y) drawn transposed and y-down (stimulus-file layout)
 #   * uses loading/load_sta.py (v2)
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import numpy as np
 import xarray as xr
 from loading.noise_data import load_noise_data  # v2 RF dataset, checked
@@ -246,8 +246,10 @@ def calculate_weighted_sta_for_cells(
             # ------------------------------------------------------------
             # Recalculate STA-per-spike
             # ------------------------------------------------------------
+            # sta_path is stored with Windows "\\" separators; PureWindowsPath splits both "\\" and "/"
+            # (plain Path on Linux gave one part -> IndexError). Fixed 20/11/2026.
             stimulus_id = int(
-                Path(cell_data["sta_path"].item()).parts[-3].split("_")[-1]
+                PureWindowsPath(cell_data["sta_path"].item()).parts[-3].split("_")[-1]
             )
 
             nr_of_spikes = recording_config.overview.spikes_df.query(
