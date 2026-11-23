@@ -100,6 +100,8 @@ for rec_name, (phase, stim_index, n_rep) in RECS.items():
     tun = pd.DataFrame([{"recording": rec_name, "cell_index": int(r["cell_id"]) if "cell_id" in r else
                          int(r["global_cell_id"].split("_cell_")[1]),
                          "osi": r[f"OSI_{args.metric}"], "bar_axis_polar": r[f"preferred_orientation_deg_{args.metric}"],
+                         "dsi": r[f"vector_DSI_{args.metric}"],
+                         "bar_direction_polar": r[f"vector_preferred_direction_deg_{args.metric}"],
                          "n_spikes": r["n_spikes"]} for r in res])
     rows.append(sub.merge(tun, on=["recording", "cell_index"], how="inner"))
     print(f"{rec_name}: {len(res)} cells with bar tuning, {len(rows[-1])} also in the RF/row table", flush=True)

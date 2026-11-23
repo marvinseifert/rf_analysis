@@ -23,7 +23,11 @@ shuffled within recording (N_PERM x); fractions along (0-15°) / across (75-90°
 Result (23/11/2026): A: crystalline +0.29 (p < 0.001, n = 113), disrupted -0.03 (n = 115), larval patch -0.16
 (n = 19); holds within RF-size halves and after adjustment (+0.22, p = 0.004). B: regular vs traced rows +0.46
 (p = 0.002; 35 % at 75-90°, 3 % along); disrupted vs traced rows +0.09 (p = 0.32), vs ONH-radial +0.20, vs rows
-predicted from the intact mosaic +0.28 (p = 0.01).
+predicted from the intact mosaic +0.28 (p = 0.01). NB Part B's "disrupted" cells are the less regular half of
+cells WITH traced rows nearby (mildly irregular mosaic; 28 of them are "disrupted" in Part A, 8 "crystalline"); the 17
+most disrupted 15/05 cells (no traceable rows, regularity 0.06) are not in Part B and show no alignment (-0.30). So
+this does NOT show post-recording distortion of strongly disrupted regions: alignment is graded (crystalline > mildly
+irregular > strongly disrupted) and the timing of disruption is unresolved.
 Output: Box Figures/RF_cone_row_angle_prediction/rf_row_bias_by_mosaic_regularity.png/.pdf
 
 Run from the repo root (~3 min):
@@ -215,9 +219,10 @@ ax.axvline(0, color="k", lw=0.8)
 ax.set_yticks(yy, [o[2] for o in order])
 ax.set_xlim(-0.1, 0.85)
 ax.set_xlabel("across > along score")
-ax.set_title("D  15/05 with hand-traced rows: regular-patch RFs lie across the REAL rows; disrupted-patch RFs follow "
-             "the rows predicted from the\nsurrounding intact mosaic better than the distorted rows in the image "
-             "(suggests mostly post-recording distortion)", loc="left", fontsize=10)
+ax.set_title("D  15/05 with hand-traced rows: regular-patch RFs lie across the REAL rows. 'Disrupted' here = less regular "
+             "half of cells WITH traced rows\n(mildly irregular mosaic): they still align, best with rows predicted from "
+             "the surroundings. The most disrupted cells (no traceable rows) show none:\ntiming of disruption unresolved",
+             loc="left", fontsize=10)
 ax.spines[["top", "right"]].set_visible(False)
 
 ax = fig.add_subplot(gs[1, 2]); ax.axis("off")
