@@ -137,9 +137,10 @@ for r in (0.45, 0.62, 0.79):
 for th in (0.6, 2.4, 4.2):
     x, y = 0.62 * np.cos(th), 0.62 * np.sin(th)
     ax.add_patch(Ellipse((x, y), 0.08, 0.2, angle=np.degrees(th), fc=RF_FC, ec=RF_EC, lw=1.8, zorder=5))
-    arrow(ax, (0.7 * np.cos(th), 0.7 * np.sin(th)), (0.95 * np.cos(th), 0.95 * np.sin(th)), lw=2, ms=14)
-ax.set_title("E  Idea: radial (looming-like) motion - BEST LEAD\ntuned crystalline cells prefer edges around the "
-             "ONH moving\nALONG the rows (radially), as for an expanding ring", loc="left", fontsize=10)
+    arrow(ax, (0.55 * np.cos(th), 0.55 * np.sin(th)), (0.95 * np.cos(th), 0.95 * np.sin(th)), style="<|-|>", lw=2, ms=14)
+ax.set_title("E  Idea: radial motion AXIS (not looming)\ntuned crystalline cells prefer edges around the ONH moving\n"
+             "ALONG the rows (radially); preferred direction is mostly INWARD\n(partly a recording-wide bias), so not "
+             "expansion/looming", loc="left", fontsize=10)
 
 # ---------------- F: resolution (H4)
 ax = fig.add_subplot(gs[1, 2])
