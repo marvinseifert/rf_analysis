@@ -68,6 +68,22 @@ Started on 14/08/2026, 6px noise (12 µm pixels shuffled in 2 µm steps). Figure
 | `check_duplicate_units.py` | Checks whether two cells are one neuron counted twice: shared spikes, firing together at 0 lag, peak electrode, template and STA similarity. |
 | `plot_neighbour_rf_overlap.py` | A cell plus its 1, 2 and 3 nearest neighbours: the actual RF maps overlaid in colour, plus a figure with the RFs in greyscale and overlapping pixels coloured (also shown on the cones). |
 
+#### Added 23 Nov 2026: can 6px noise see cone / bipolar input at all?
+
+Results: the 6px checker (11.7 µm at 1.9476 µm/px) has ~2 % stimulus power at 10-15 µm periods and a zero at 11.7 µm. Simulations: single-cone-type RFs are detectable, dense all-cone pooling mostly not; 4px resolves UV/blue cones, 2px everything (lower SNR). Real cells: no reproducible structure < 10 µm beyond RF shape (shape-twin control). At 15-50 µm, 12/45 cells beat their shape twin (p = 1.5e-6), but the spots are point-like (single cone or small bipolar, not separable at 6px); only cell 282's central hot spot clearly reproduces across independent halves (not seen in 8px, where the cell is weak). Figures: Box `Figures/RF_cone_alignment_v2/` (colour checks: `Figures/colour_noise_checks/`).
+
+| Script | What it does |
+|---|---|
+| `stimulus_power_spectrum.py` | Spatial power spectrum of the actual 6px frames vs the sinc² prediction; power in the 10-15 µm cone band; grid-shift histogram. |
+| `cone_bump_power_and_split_half.py` | (1) Half-split of fine structure (map - 6 µm blur) in all quality >= 10 cells, independent sequence halves, shifted-spike and elliptical "smooth twin" controls. (2) Cone-bump power simulation (8 cells x 4 RF types x 20 placements) with a position test. Old schematic mosaic: see the note in the docstring. Its JSON feeds the scripts below. ~50 min. |
+| `shape_twin_control.py` | Stricter control: twin = the cell's own map smoothed 4 µm (same RF shape, no fine detail). Only 2/13 cells pass, by tiny margins. |
+| `cone_bump_checker_size.py` | Same cell simulated with synthetic shuffled 2/4/6 px noise, Laura's row mosaic (UV-B / R-G / G-R / B-UV rows), RFs on all cones or one cone type; maps, position-test power and SNR; mosaic schematic in the figure. |
+| `colour_noise_checks.py` | 15/10 and 22/10 interleaved colour noise (32px): single colour vs white quality, chromatic offset of RF centres (shift and magnification), adaptation after a colour switch. |
+| `bipolar_scale_split_half.py` | Half-split at bipolar scale (15-50 µm band, Gaussian 3 - 8 µm) against shape twins (own map smoothed 10 µm), all cells. |
+| `bipolar_spots_on_cones.py` | The reproducible 15-50 µm spots of chosen cells on the aligned cone image, their width vs single-cone / bipolar references through the same blur, and the covariance map overlaid. |
+| `band_controls_on_cones.py` | Same band display for a cell and its controls on the cone image: covariance map, STA map, halves A/B, shape twin, shifted-spike halves (+ chance r from 20 shifts). |
+| `compare_6px_8px_hotspot.py` | Does a cell's 6px hot spot appear in the independent 8px noise (maps, bands, halves, chance)? |
+
 ### `SNMF/`: testing sNMF / subunits against fair noise controls (20 Nov 2026)
 
 14/08/2026 6px shuffled noise, using the per-cell `snippets.h5` from rf_torch `main_sta_snippets_all.py`. Result: RF shapes reproduce in independent halves (reliable to ~19 µm detail in cell 150), but no structure smaller than the RF beats chance. Two traps found: the shuffle makes even pure-noise sNMF modules smooth (Moran's I cut-off useless), and the 30-min sequence is played 3× identically (any spike split shares frames: split by half of the noise *sequence* instead). Figures go to Box `Figures/SNMF/`. Run with `MPLBACKEND=Agg`, one at a time.
