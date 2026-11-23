@@ -137,10 +137,13 @@ for r in (0.45, 0.62, 0.79):
 for th in (0.6, 2.4, 4.2):
     x, y = 0.62 * np.cos(th), 0.62 * np.sin(th)
     ax.add_patch(Ellipse((x, y), 0.08, 0.2, angle=np.degrees(th), fc=RF_FC, ec=RF_EC, lw=1.8, zorder=5))
-    arrow(ax, (0.55 * np.cos(th), 0.55 * np.sin(th)), (0.95 * np.cos(th), 0.95 * np.sin(th)), style="<|-|>", lw=2, ms=14)
-ax.set_title("E  Idea: radial motion AXIS (not looming)\ntuned crystalline cells prefer edges around the ONH moving\n"
-             "ALONG the rows (radially); preferred direction is mostly INWARD\n(partly a recording-wide bias), so not "
-             "expansion/looming", loc="left", fontsize=10)
+    arrow(ax, (0.98 * np.cos(th), 0.98 * np.sin(th)), (0.74 * np.cos(th), 0.74 * np.sin(th)), lw=2.4, ms=15)  # contracting
+    arrow(ax, (0.3 * np.cos(th), 0.3 * np.sin(th)), (0.5 * np.cos(th), 0.5 * np.sin(th)), lw=1.2, ms=10,
+          color="0.6")  # expanding (less preferred), pointing outward
+ax.text(0, -1.08, "black: contracting (preferred)   grey: expanding", ha="center", fontsize=8)
+ax.set_title("E  Idea: expanding vs contracting (radial) motion\ntuned crystalline cells prefer edges around the ONH moving\n"
+             "ALONG the rows (radially); preferred direction mostly INWARD =\nCONTRACTING (14/05, ONH central: 12 of 13 "
+             "DS cells)", loc="left", fontsize=10)
 
 # ---------------- F: resolution (H4)
 ax = fig.add_subplot(gs[1, 2])
