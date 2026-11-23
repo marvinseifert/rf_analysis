@@ -130,6 +130,21 @@ Cone rows are assumed to radiate from the optic nerve head (ONH); each RF's long
 | `supporting_analyses/rf_position_arc_test.py` | Do RF centres line up in arcs around the ONH (neighbour-pair test, calibrated on synthetic data)? No consistent effect. |
 | `supporting_analyses/check_rf_angle_reliability.py` | Stored RF angle vs an independent map measurement, and same cell across noise stimuli vs different cells. |
 
+**Added 23 Nov 2026 (per-cell tests, measured rows, mosaic regularity).** The across-recording test in `summary_figure.py` (p = 0.007) compares MEAN row directions, which is not meaningful where rows fan out from a nearby ONH (4 of 7 recordings); use the per-cell within-recording shuffle instead (p = 0.009, all cells). Results: RFs are under-represented ALONG their own row (about 10 % vs 13-17 % chance), not "along or across"; the bias is present only over regular (crystalline) mosaic (score +0.29, p < 0.001) and absent over disrupted mosaic and the larval patch (< 200 µm from the ONH); in 15/05 with traced rows, regular-patch RFs lie squarely ACROSS the real rows (35 % at 75-90°, 3 % along), and disrupted-patch RFs follow the rows predicted from the surrounding intact mosaic better than the imaged ones (suggesting mostly post-recording distortion). The 60-75° peak against ONH-radial rows is mostly the rows' twist away from radial (about 10-15° in 15/05), not the lattice diagonal. Moving bars/edges add little (few cells orientation-tuned; mixed relation to rows). No cell-type or clear colour specificity. Figures in the same Box folder.
+
+| Script | What it does |
+|---|---|
+| `summary_figure_per_cell.py` | Corrected summary figure in the same style as `summary_figure.py` (unchanged): per-cell tests (within-recording shuffle, fake ONH positions), per-recording % across own row with row spread. |
+| `supporting_analyses/rf_row_strict_tests.py` | The two per-cell tests on their own, all and elongated cells. |
+| `supporting_analyses/rf_row_angle_distribution.py` | Along / oblique / across fractions and the "along OR across" (cos 4θ) vs "across > along" (cos 2θ) tests; stimulus-grid control. |
+| `supporting_analyses/rf_vs_measured_rows_15_05.py` | 15/05: RF axes vs the rows traced on the cone image (`Imaging/20260515_dragonfly_microscope/15_05_2026_cones_rows.csv`); traced vs ONH-radial rows. |
+| `supporting_analyses/cone_lattice_angles_15_05.py` | 15/05: labelled-cone lattice directions relative to the traced rows (same-row neighbours ~12 µm, adjacent-row diagonals at ~66-69° folded). |
+| `supporting_analyses/rf_row_bias_by_mosaic_regularity.py` | Crystalline vs disrupted (cone_regularity_index median split) vs larval patch (4 recordings), and 15/05 traced rows: imaged vs predicted pre-distortion rows. |
+| `supporting_analyses/rf_row_bias_by_cell_type.py` | Bias by RF polarity, RF size, contrast-step polarity, transience, chirp frequency; 15° bins with shuffle chance. |
+| `supporting_analyses/rf_row_bias_by_colour.py` | Bias by colour preference and strict colour opponency (single chromatic flashes). |
+| `supporting_analyses/bar_orientation_vs_cone_rows.py` | Moving-bar preferred motion axis vs own row and RF axis (peak response; per-cell within-recording shuffle). |
+| `supporting_analyses/plot_bar_rows_schematic.py` | Explainer figure: row mosaic, RF and bar alternatives, whole-retina schematic, real data in the row frame. |
+
 ### `OSI/`: moving-bar direction and orientation selectivity
 
 The bar directions are chosen by recording date. In some recordings the moving bar may not have covered the whole array.
@@ -139,6 +154,8 @@ The bar directions are chosen by recording date. In some recordings the moving b
 | `OS_analysis.py` | OSI/DSI for all cells of one or more recordings: tables, a tilt-vs-OSI scatter plot, and polar plots showing the RF long axis. |
 | `OS_analysis_stimulus_filtered_cells.py` | The same, with an optional list of cells to keep for each recording. |
 | `moving_edge_analysis.py` | Per-cell summary figures for 1–4 weighted moving bar/edge stimuli (H5 files). |
+| `edge_tuning_table.py` | (23/11/2026) Moving-edge OSI/DSI for every cell and condition (22/07 ON/OFF 13 and 60 fps, 14/08 ON/OFF 13 fps; 07/08 skipped: triggers do not fit whole repeats), with a direction-label shuffle test; reuses `moving_edge_analysis.py` functions. Output: Box `Figures/OSI/edge_tuning_table.csv`. |
+| `edge_orientation_vs_cone_rows.py` | (23/11/2026) Significantly orientation-tuned edge cells vs their own cone row and RF axis (within-recording shuffle); only 3-10 % of cells tuned (14/08 at chance). |
 
 ### `RF_analysis/`: general RF plotting and STA tools
 
