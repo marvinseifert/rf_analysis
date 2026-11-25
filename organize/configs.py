@@ -89,13 +89,23 @@ class Recording_Config(Loadable_Model):
         """
         return Recording.load(self.root_path / "overview")
 
-    def add_channel(self, stimulus_id: int, name: str, colour: str):
+    def add_channel(
+        self,
+        stimulus_id: int,
+        name: str,
+        colour: str,
+        folder_suffix: str | None = None,
+    ):
         """
         Parameters
         ----------
         stimulus_id (str): Identifier for the noise stimulus.
         name (str): Name of the stimulus.
         colour (str): Colour associated with the stimulus.
+        folder_suffix (str, optional): For one colour of an interleaved colour-noise
+            sequence: the STA folder is <stimulus>_<folder_suffix>_idx_<id>
+            (e.g. "led_610" or "white", as written by rf_torch/main_sta_colour_sequence.py).
+            None (default): <stimulus>_idx_<id>.
 
         """
         # get stimulus_name from overview
@@ -109,12 +119,48 @@ class Recording_Config(Loadable_Model):
             .values[0]
             .strip()
         )
+        if folder_suffix:
+            stimulus_name = f"{stimulus_name}_{folder_suffix}"
         channel_path = self.root_path / f"{stimulus_name}_idx_{stimulus_id}"
         # check all folders with ending cell_idx inside channel_path
         self.channel_configs[name] = Noise_Stimulus_Config(
             stimulus_name=stimulus_name, root_path=channel_path
         )
         object.__setattr__(self, "nr_channels", len(self.channel_names))
+
+    def add_colour_sequence_channels(
+        self,
+        stimulus_id: int,
+        colours: List[str],
+        plot_colours: Optional[Dict[str, str]] = None,
+    ):
+        """
+        Add every colour of an interleaved colour-noise stimulus as its own channel
+        (STAs from rf_torch/main_sta_colour_sequence.py). Channel names are
+        <stimulus>_white / <stimulus>_led_<nm>, as in the October 2026 colour analyses.
+
+        colours: e.g. ["white", "610", "500", "420"].
+        plot_colours: plotting colour per entry of colours (defaults: white black,
+            610 red, 500 green, 420 blue, others grey).
+        """
+        default = {"white": "black", "610": "red", "500": "green", "420": "blue"}
+        plot_colours = {**default, **(plot_colours or {})}
+        stimulus_name = (
+            self.overview.stimulus_df.query(f"stimulus_index=={stimulus_id}")[
+                "stimulus_name"
+            ]
+            .values[0]
+            .strip()
+        )
+        for colour in colours:
+            colour = str(colour)
+            suffix = colour if colour == "white" else f"led_{colour}"
+            self.add_channel(
+                stimulus_id=stimulus_id,
+                name=f"{stimulus_name}_{suffix}",
+                colour=plot_colours.get(colour, "grey"),
+                folder_suffix=suffix,
+            )
 
 
 class Noise_Stimulus_Config(Loadable_Model):

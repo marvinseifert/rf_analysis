@@ -18,6 +18,7 @@ The RF analysis pipeline (shared with Marvin) and its conversion tools.
 | `convert_noise_data_v2.py` | Converts an old `noise_data.nc` into `noise_data_v2.nc` without recomputing anything. |
 | `convert_all_noise_data_v2.sh` | Runs the converter on every `noise_analysis*` folder of one recording. |
 | `relabel_pixel_size_settings.py` | Changes a recording's stimulus pixel size in its settings (e.g. 2.5 → 2.0 µm). Keeps `_orig_2.5um` backups. |
+| `RF_pipeline_colour_sequence.py` | RF pipeline for interleaved colour noise (LED switching every N frames): every colour becomes its own channel. Run `rf_torch/main_sta_colour_sequence.py` first for the per-colour STAs (25 Nov 2026). |
 | `RF_L_shaped.py` | One-off: RF analysis of the L-shaped noise (14/08/2026, Phase_01). |
 | `clustering_pipeline.py` | Marvin's script: clusters cells by their RF and response features. Reads v1 data. Do not edit. |
 | `clustering_pipeline_v2.py` | Copy of the above for v2 data, with Linux paths. *Not yet run.* |
@@ -98,6 +99,12 @@ Results: the 6px checker (11.7 µm at 1.9476 µm/px) has ~2 % stimulus power at 
 | `split_half_blobs.py` | RF map from two halves of the spikes (recording halves, and independent noise-sequence halves) and whether the blobs come back; shifted spike train as chance. |
 | `rf_resolution_test.py` | Fourier ring correlation of two independent half-maps: the finest detail size that is reliable. |
 | `plot_bar_stimulus_design.py` | Design sketch (no data): random-bar stimuli (single bar, few bars, 1D flickering bars across / along the cone rows) on a schematic mosaic. |
+
+### `chromatic RFs spatial offset/`: RFs of interleaved colour noise (25 Nov 2026)
+
+| Script | What it does |
+|---|---|
+| `plot_chromatic_rfs.py` | Per-cell RF maps, outlines + overlay, RGB composites and STA kernels for every colour (15/10 P0, 22/10 P1), grouped by quality. Optional rows: STA frames (`--sta-frames`) and every scf / csteps PSTH (`--fff`). Rewrite of the lost script behind `Figures/RF_colour_offsets.pptx`. |
 
 ### `Cone_imaging/`: cone mosaic spacing
 
