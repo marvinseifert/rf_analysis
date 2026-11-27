@@ -22,7 +22,7 @@ import xarray as xr
 
 from laura_scripts.Alignment_pipeline.alignment_recordings import noise_data_v2_file
 
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
 LARVAL_UM, N_PERM = 200.0, 3000
 rng = np.random.default_rng(31)
 

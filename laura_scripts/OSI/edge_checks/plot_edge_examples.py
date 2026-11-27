@@ -14,7 +14,7 @@ CELLS = [148, 28, 232]
 SHORT = {"left_to_right": "L→R", "right_to_left": "R→L", "bottom_to_top": "B→T", "top_to_bottom": "T→B",
          "bottom_left_to_top_right": "BL→TR", "bottom_right_to_top_left": "BR→TL",
          "top_left_to_bottom_right": "TL→BR", "top_right_to_bottom_left": "TR→BL"}
-OUT = "/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/noise_rate_comparison/moving_edge_example_cells_22_07.png"
+OUT = "/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/OSI/edge_checks/moving_edge_example_cells_22_07.png"
 
 o = pickle.load(open(ROOT + "/overview", "rb")); sd = o.stimulus_df
 sp = pd.read_parquet(ROOT + "/alldata.parquet")

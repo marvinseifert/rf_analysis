@@ -433,7 +433,7 @@ for threshold in RF_QUALITY_THRESHOLDS:
     )
 
     output_figure = Path(
-        r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/Seaborn"
+        r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Seaborn/fff_feature_pipeline"
         rf"/seaborn_pairplot_v2_RFquality_above_{threshold}_all_aligned_recordings.png"
     )
     output_figure.parent.mkdir(parents=True, exist_ok=True)

@@ -51,7 +51,7 @@ from subunit_tools import (
 )
 
 Image.MAX_IMAGE_PIXELS = None
-OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_alignment_v2")
+OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/6px_subunit_exploration")
 COARSE_UM = 15.0
 COLOUR_A = "tab:green"
 COLOUR_B = "yellow"

@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 from scipy import stats
 
 HERE = Path(__file__).resolve().parents[1] / "results"   # stimulus_frequency_exploration/results
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/noise_rate_comparison/noise_rate_summary.png")
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/stimulus_frequency_exploration/rate_comparison_15_10/noise_rate_summary.png")
 RATES = [5, 10, 15, 20]
 CHANCE_MAX = {5: 14.17, 10: 9.46, 15: 10.17, 20: 9.94}
 GROUP_COL = ["#08519c", "#4292c6", "#41ab5d"]     # blue -> green

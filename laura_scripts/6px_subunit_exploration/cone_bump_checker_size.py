@@ -36,7 +36,7 @@ parser.add_argument("--n-null", type=int, default=200)
 args = parser.parse_args()
 
 PROJECT = Path("/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00")
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_alignment_v2")
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/6px_subunit_exploration")
 RES = OUT / "cone_bump_power_and_split_half_14_08_2026_6px.json"
 UM, SEQ, N_REP, STIM_INDEX = 1.9476, 27000, 3, 10
 # Row mosaic (Laura, 23/11/2026): single-cone row UV-B-UV-B, then two red/green rows (red always next to blue;

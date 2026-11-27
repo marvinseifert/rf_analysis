@@ -54,7 +54,7 @@ _sys.path.insert(0, str(_Path(__file__).resolve().parent))
 from subunit_tools import SUBUNIT_QUALITY_MIN, subunit_score
 
 Image.MAX_IMAGE_PIXELS = None
-OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_alignment_v2")
+OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/6px_subunit_exploration")
 COLOURS = ["tab:green", "yellow", "tab:orange", "tab:cyan"]  # centre cell, then neighbours 1-3
 OVERLAY_FLOOR = 0.2  # fraction of each RF's peak below which the overlay is transparent
 OVERLAY_MAX_ALPHA = 0.85

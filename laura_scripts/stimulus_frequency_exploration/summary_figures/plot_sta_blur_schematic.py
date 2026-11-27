@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/noise_rate_comparison/sta_blur_schematic.png")
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/stimulus_frequency_exploration/summary_figures/sta_blur_schematic.png")
 COL = {5: "#08306b", 10: "#2171b5", 15: "#41ab5d", 20: "#a1d99b"}
 MEASURED_WIDTH = {5: 190, 10: 99, 15: 75, 20: 73}       # 15/10, same 27 cells (ms)
 

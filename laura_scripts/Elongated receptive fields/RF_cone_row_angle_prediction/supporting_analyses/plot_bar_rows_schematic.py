@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.patches import Circle, Ellipse, FancyArrowPatch, Rectangle
 
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
 df = pd.read_csv(FIG / "bar_orientation_vs_cone_rows_cells_peak_response.csv")
 tuned = df[(df.osi >= 0.1) & (df.n_spikes >= 100) & (~df.near_edge.astype(bool))].copy()
 COL = {"UV": "#c040c0", "Blue": "#3070e0", "Red": "#e03030", "Green": "#30a040"}

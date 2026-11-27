@@ -27,7 +27,7 @@ STIM = "/mnt/mea_nas/Laura/stimuli/stimuli_Oct_2026/32px_{}Hz_20mins_shuffle_x4.
 RATES = {5: 9, 10: 10, 15: 11, 20: 12}
 COL = {5: "#08306b", 10: "#2171b5", 15: "#41ab5d", 20: "#a1d99b"}
 HERE = Path(__file__).resolve().parents[1] / "results"   # stimulus_frequency_exploration/results
-OUT_FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/noise_rate_comparison/rf_timecourse_by_noise_rate_same_cells.png")
+OUT_FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/stimulus_frequency_exploration/rate_comparison_15_10/rf_timecourse_by_noise_rate_same_cells.png")
 B, FS = 8, 20000
 LAGS = -800 + 10 * np.arange(100)            # ms, negative = before the spike
 dev = "cuda"

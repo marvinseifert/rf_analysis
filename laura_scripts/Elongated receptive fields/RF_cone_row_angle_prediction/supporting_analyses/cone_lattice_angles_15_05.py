@@ -40,7 +40,7 @@ args = parser.parse_args()
 Image.MAX_IMAGE_PIXELS = None
 REC = "15_05_2026"
 IMG_DIR = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Experiments/Imaging/20260515_dragonfly_microscope")
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
 with contextlib.redirect_stdout(io.StringIO()):
     geo = g.load_alignment_geometry(alignment_cache_v2_file(REC))
 Ai = geo.A_image1_to_projected_um

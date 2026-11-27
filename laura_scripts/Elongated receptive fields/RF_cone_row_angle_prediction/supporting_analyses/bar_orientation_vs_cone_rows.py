@@ -52,7 +52,7 @@ parser.add_argument("--metric", choices=["total_spikes", "peak_response"], defau
 args = parser.parse_args()
 
 REPO = Path(__file__).resolve().parents[4]
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
 CSV = FIG / "rf_vs_cone_row_angle_all_recordings_cells.csv"
 RECS = {  # recording -> (phase folder, moving-bar stimulus index, repeats)
     "22_07_2026": ("Phase_00", 3, 10),

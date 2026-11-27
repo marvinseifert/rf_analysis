@@ -23,8 +23,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--min-dsi", type=float, default=0.15)
 args = parser.parse_args()
 
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
-OSI_FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/OSI")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
+OSI_FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/OSI")
 RECS = ["14_05_2026", "14_08_2026"]
 rng = np.random.default_rng(81)
 

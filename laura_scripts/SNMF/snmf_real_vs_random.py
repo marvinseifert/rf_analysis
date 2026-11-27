@@ -41,7 +41,7 @@ parser.add_argument("--drop-first", type=int, default=100)
 parser.add_argument("--block", type=int, default=1000, help="snippets read per block")
 args = parser.parse_args()
 
-OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/SNMF")
+OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/SNMF")
 REAL_COLOUR, RANDOM_COLOUR = "tab:blue", "tab:green"
 cell_dir = args.stim_folder / f"cell_{args.cell}"
 files = {"real": cell_dir / "snippets.h5", "random": cell_dir / "snippets_random_control.h5"}

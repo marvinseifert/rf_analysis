@@ -106,7 +106,7 @@ parser.add_argument("--frame", default="projected", choices=["stimulus", "projec
                          "(alignment_geometry, rule changed 8 Oct 2026); both drawn +y down")
 parser.add_argument("--fff-bin-s", type=float, default=0.1)
 parser.add_argument("--out", type=Path,
-                    default=Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/chromatic_RFs_spatial_offset"))
+                    default=Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/chromatic_RFs/spatial_offsets"))
 parser.add_argument("--dpi", type=int, default=130)
 args = parser.parse_args()
 

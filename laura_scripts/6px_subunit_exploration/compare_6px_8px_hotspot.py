@@ -42,7 +42,7 @@ STIMS = {
     "8px": dict(file=Path("/mnt/mea_nas/Laura/stimuli/stimuli_July_2026/8px_15Hz_35mins_shuffle_x8.h5"), index=4,
                 quality=PROJECT / "8px_15Hz_35mins_shuffle_x8_idx_4" / "quality.npy"),
 }
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_alignment_v2")
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/6px_subunit_exploration")
 UM, N_REP, L, CUT = 1.9476, 3, 11, 50
 W = 2 * CUT
 LO, HI = 3.0, 8.0

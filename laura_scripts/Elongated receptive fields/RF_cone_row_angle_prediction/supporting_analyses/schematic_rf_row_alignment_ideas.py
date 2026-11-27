@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Circle, Ellipse, FancyArrowPatch, Rectangle
 
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
 COL = {"UV": "#c040c0", "B": "#3070e0", "R": "#e03030", "G": "#30a040"}
 RF_FC, RF_EC = (1, 0.82, 0.2, 0.30), "darkorange"
 ROWC = "#e08040"

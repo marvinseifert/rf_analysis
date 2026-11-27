@@ -59,7 +59,7 @@ Early electrode-alignment prototypes from March/April 2026. Most of their data i
 
 ### `6px_subunit_exploration/`: looking for cone / subunit input in single RFs (20 Nov 2026)
 
-Started on 14/08/2026, 6px noise (12 µm pixels shuffled in 2 µm steps). Figures go to Box `Figures/RF_cone_alignment_v2/`. Run with `MPLBACKEND=Agg`.
+Started on 14/08/2026, 6px noise (12 µm pixels shuffled in 2 µm steps). Figures go to Box `Figures/rf_analysis/6px_subunit_exploration/`. Run with `MPLBACKEND=Agg`.
 
 | Script | What it does |
 |---|---|
@@ -71,7 +71,7 @@ Started on 14/08/2026, 6px noise (12 µm pixels shuffled in 2 µm steps). Figure
 
 #### Added 23 Nov 2026: can 6px noise see cone / bipolar input at all?
 
-Results: the 6px checker (11.7 µm at 1.9476 µm/px) has ~2 % stimulus power at 10-15 µm periods and a zero at 11.7 µm. Simulations: single-cone-type RFs are detectable, dense all-cone pooling mostly not; 4px resolves UV/blue cones, 2px everything (lower SNR). Real cells: no reproducible structure < 10 µm beyond RF shape (shape-twin control). At 15-50 µm, 12/45 cells beat their shape twin (p = 1.5e-6), but the spots are point-like (single cone or small bipolar, not separable at 6px); only cell 282's central hot spot clearly reproduces across independent halves (not seen in 8px, where the cell is weak). Figures: Box `Figures/RF_cone_alignment_v2/` (colour checks: `Figures/colour_noise_checks/`).
+Results: the 6px checker (11.7 µm at 1.9476 µm/px) has ~2 % stimulus power at 10-15 µm periods and a zero at 11.7 µm. Simulations: single-cone-type RFs are detectable, dense all-cone pooling mostly not; 4px resolves UV/blue cones, 2px everything (lower SNR). Real cells: no reproducible structure < 10 µm beyond RF shape (shape-twin control). At 15-50 µm, 12/45 cells beat their shape twin (p = 1.5e-6), but the spots are point-like (single cone or small bipolar, not separable at 6px); only cell 282's central hot spot clearly reproduces across independent halves (not seen in 8px, where the cell is weak). Figures: Box `Figures/rf_analysis/6px_subunit_exploration/` (colour checks: `Figures/rf_analysis/6px_subunit_exploration/colour_noise_checks/`).
 
 | Script | What it does |
 |---|---|
@@ -87,7 +87,7 @@ Results: the 6px checker (11.7 µm at 1.9476 µm/px) has ~2 % stimulus power at 
 
 ### `SNMF/`: testing sNMF / subunits against fair noise controls (20 Nov 2026)
 
-14/08/2026 6px shuffled noise, using the per-cell `snippets.h5` from rf_torch `main_sta_snippets_all.py`. Result: RF shapes reproduce in independent halves (reliable to ~19 µm detail in cell 150), but no structure smaller than the RF beats chance. Two traps found: the shuffle makes even pure-noise sNMF modules smooth (Moran's I cut-off useless), and the 30-min sequence is played 3× identically (any spike split shares frames: split by half of the noise *sequence* instead). Figures go to Box `Figures/SNMF/`. Run with `MPLBACKEND=Agg`, one at a time.
+14/08/2026 6px shuffled noise, using the per-cell `snippets.h5` from rf_torch `main_sta_snippets_all.py`. Result: RF shapes reproduce in independent halves (reliable to ~19 µm detail in cell 150), but no structure smaller than the RF beats chance. Two traps found: the shuffle makes even pure-noise sNMF modules smooth (Moran's I cut-off useless), and the 30-min sequence is played 3× identically (any spike split shares frames: split by half of the noise *sequence* instead). Figures go to Box `Figures/rf_analysis/SNMF/`. Run with `MPLBACKEND=Agg`, one at a time.
 
 | Script | What it does |
 |---|---|
@@ -106,11 +106,11 @@ Results: the 6px checker (11.7 µm at 1.9476 µm/px) has ~2 % stimulus power at 
 
 | Script | What it does |
 |---|---|
-| `plot_chromatic_rfs.py` | Per-cell RF maps, outlines + overlay, RGB composites and STA kernels for every colour (15/10 P0, 22/10 P1), grouped by quality. Optional rows: STA frames (`--sta-frames`) and every scf / csteps PSTH (`--fff`). Rewrite of the lost script behind `Figures/RF_colour_offsets.pptx`. |
+| `plot_chromatic_rfs.py` | Per-cell RF maps, outlines + overlay, RGB composites and STA kernels for every colour (15/10 P0, 22/10 P1), grouped by quality. Optional rows: STA frames (`--sta-frames`) and every scf / csteps PSTH (`--fff`). Rewrite of the lost script behind `Figures/rf_analysis/chromatic_RFs/spatial_offsets/RF_colour_offsets.pptx`. |
 
 #### `chromatic_RFs/frequency_offsets/`: speed / timing per colour (27 Nov 2026)
 
-Results in `frequency_offsets/results/` (not in git - copy on Box, see .gitignore). Figure: Box `Figures/noise_rate_comparison/colour_noise_comparison.png`.
+Results in `frequency_offsets/results/` (not in git - copy on Box, see .gitignore). Figure: Box `Figures/rf_analysis/ (stimulus_frequency_exploration, chromatic_RFs/frequency_offsets, OSI/edge_checks) colour_noise_comparison.png`.
 
 | Script | What it does |
 |---|---|
@@ -138,7 +138,7 @@ Uses the dragonfly (sws1 mCherry) images.
 
 #### `Elongated receptive fields/RF_cone_row_angle_prediction/`: RF orientation vs predicted cone rows (19 Nov 2026)
 
-Cone rows are assumed to radiate from the optic nerve head (ONH); each RF's long axis is compared with the line ONH -> RF centre. Final figure: Box `Figures/RF_cone_row_angle_prediction/FINAL/`.
+Cone rows are assumed to radiate from the optic nerve head (ONH); each RF's long axis is compared with the line ONH -> RF centre. Final figure: Box `Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction/FINAL/`.
 
 | Script | What it does |
 |---|---|
@@ -163,7 +163,7 @@ Cone rows are assumed to radiate from the optic nerve head (ONH); each RF's long
 | `supporting_analyses/rf_alignment_vs_properties_crystalline.py` | Crystalline cells lying across their row vs oblique ones: 19 response / RF properties, within-recording ranks, FDR; nothing survives correction. |
 | `supporting_analyses/expansion_vs_contraction.py` | Preferred motion DIRECTION vs outward-from-ONH (bars: DSI >= 0.15; edges: DSI shuffle p < 0.05), by region. Crystalline bar cells prefer INWARD motion (8 % outward, p = 0.001 vs a shuffle that is itself inward-biased); edges: too few cells. Not looming-like. |
 | `supporting_analyses/expansion_vs_contraction_central_onh.py` | Same test in the recordings with the ONH near the array centre (14/05, 14/08), where a shared preferred direction cannot fake inward/outward; maps of preferred-direction arrows. 14/05: 12 of 13 DS bar cells prefer INWARD (contracting) motion (mean cos -0.70 vs shuffle -0.11, p < 0.001); 14/08: -0.26 (p = 0.16). Small n. |
-| `supporting_analyses/direction_preference_summary.py` | Summary figure (Box Figures/RF_cone_row_angle_prediction/direction_preference_summary.png): A moving-bar DS cells by mosaic region vs within-recording shuffle baselines (crystalline -0.62, p = 0.001; disrupted -0.27, p = 0.19; larval 3 cells; crystalline - disrupted -0.35, p = 0.005, region labels shuffled within recording); B/C central-ONH maps 14/05 and 14/08 with preferred-direction arrows; caveats and interpretation box. |
+| `supporting_analyses/direction_preference_summary.py` | Summary figure (Box Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction/direction_preference_summary.png): A moving-bar DS cells by mosaic region vs within-recording shuffle baselines (crystalline -0.62, p = 0.001; disrupted -0.27, p = 0.19; larval 3 cells; crystalline - disrupted -0.35, p = 0.005, region labels shuffled within recording); B/C central-ONH maps 14/05 and 14/08 with preferred-direction arrows; caveats and interpretation box. |
 | `supporting_analyses/schematic_rf_row_alignment_ideas.py` | Schematic summary figure (no data): the alignment (A-C), computational ideas (D-I) and tentative conclusions. |
 | `supporting_analyses/computational_hypotheses.py` | Five computational hypotheses with existing data + summary figure: lattice anti-aliasing (right direction, wrong scale), ring vs spoke population sensitivity (+5.6 %, crystalline only), moving bars prefer motion along the rows in crystalline cells (p = 0.002), RF ~5 % wider across rows, colour-sampling advantage of a regular mosaic only 1-3 % at RF scale. |
 | `supporting_analyses/rf_row_bias_by_cell_type.py` | Bias by RF polarity, RF size, contrast-step polarity, transience, chirp frequency; 15° bins with shuffle chance. |
@@ -180,7 +180,7 @@ The bar directions are chosen by recording date. In some recordings the moving b
 | `OS_analysis.py` | OSI/DSI for all cells of one or more recordings: tables, a tilt-vs-OSI scatter plot, and polar plots showing the RF long axis. |
 | `OS_analysis_stimulus_filtered_cells.py` | The same, with an optional list of cells to keep for each recording. |
 | `moving_edge_analysis.py` | Per-cell summary figures for 1–4 weighted moving bar/edge stimuli (H5 files). |
-| `edge_tuning_table.py` | (23/11/2026) Moving-edge OSI/DSI for every cell and condition (22/07 ON/OFF 13 and 60 fps, 14/08 ON/OFF 13 fps; 07/08 skipped: triggers do not fit whole repeats), with a direction-label shuffle test; reuses `moving_edge_analysis.py` functions. Output: Box `Figures/OSI/edge_tuning_table.csv`. |
+| `edge_tuning_table.py` | (23/11/2026) Moving-edge OSI/DSI for every cell and condition (22/07 ON/OFF 13 and 60 fps, 14/08 ON/OFF 13 fps; 07/08 skipped: triggers do not fit whole repeats), with a direction-label shuffle test; reuses `moving_edge_analysis.py` functions. Output: Box `Figures/rf_analysis/OSI/edge_tuning_table.csv`. |
 | `edge_orientation_vs_cone_rows.py` | (23/11/2026) Significantly orientation-tuned edge cells vs their own cone row and RF axis (within-recording shuffle); only 3-10 % of cells tuned (14/08 at chance). |
 
 #### `OSI/edge_checks/`: are the moving edges responding? (27 Nov 2026)
@@ -236,7 +236,7 @@ The table combines RF, full-field, moving-stimulus and cone features.
 
 ### `stimulus_frequency_exploration/`: choosing the noise frame rate (27 Nov 2026)
 
-Which noise rate (frame length) is best for RFs: signal ÷ noise vs temporal blur. Mainly 15/10/2026 (32px white noise at 5/10/15/20 Hz, 20 min each) plus the 20 Hz clustering recordings. All outputs in `stimulus_frequency_exploration/results/` (not in git - copy on Box: `SUSSEX/Experiments/Zebrafish/Figures/rf_analysis_results/`); figures in Box `Figures/noise_rate_comparison/`. Agreed conclusions: memory note / conclusion box in `frame_rate_concept.png`.
+Which noise rate (frame length) is best for RFs: signal ÷ noise vs temporal blur. Mainly 15/10/2026 (32px white noise at 5/10/15/20 Hz, 20 min each) plus the 20 Hz clustering recordings. All outputs in `stimulus_frequency_exploration/results/` (not in git - copy on Box: `SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/`); figures in Box `Figures/rf_analysis/ (stimulus_frequency_exploration, chromatic_RFs/frequency_offsets, OSI/edge_checks) `. Agreed conclusions: memory note / conclusion box in `frame_rate_concept.png`.
 
 | Folder / script | What it does |
 |---|---|

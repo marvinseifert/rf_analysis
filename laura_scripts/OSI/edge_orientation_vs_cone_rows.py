@@ -29,8 +29,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--alpha", type=float, default=0.05)
 args = parser.parse_args()
 
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/OSI")
-ROWS_CSV = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction/"
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/OSI")
+ROWS_CSV = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction/"
                 "rf_vs_cone_row_angle_all_recordings_cells.csv")
 tun = pd.read_csv(OUT / "edge_tuning_table.csv")
 rf = pd.read_csv(ROWS_CSV)

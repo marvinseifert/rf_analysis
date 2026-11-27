@@ -47,7 +47,7 @@ parser.add_argument("--drop-first", type=int, default=100)
 parser.add_argument("--block", type=int, default=1000)
 args = parser.parse_args()
 
-OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/SNMF")
+OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/SNMF")
 REAL, RANDOM, CROSS = "tab:blue", "tab:green", "grey"
 BIN_MS, POST_BINS = 10, 20  # 10 ms bins; last 20 bins are after the spike
 cell_dir = args.stim_folder / f"cell_{args.cell}"

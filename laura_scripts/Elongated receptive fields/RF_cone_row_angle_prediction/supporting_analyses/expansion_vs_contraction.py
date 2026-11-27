@@ -31,8 +31,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--min-dsi", type=float, default=0.15)
 args = parser.parse_args()
 
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
-OSI_FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/OSI")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
+OSI_FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/OSI")
 rng = np.random.default_rng(71)
 
 rf = pd.read_csv(FIG / "rf_vs_cone_row_angle_all_recordings_cells.csv")

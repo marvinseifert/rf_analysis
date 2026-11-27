@@ -37,7 +37,7 @@ from laura_scripts.Alignment_pipeline.alignment_recordings import (
 
 Image.MAX_IMAGE_PIXELS = None
 
-OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_alignment_v2")
+OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Alignment_pipeline")
 STYLE = {
     "cm_most_important": dict(cmap="coolwarm", signed=True, name="covariance"),
     "rms": dict(cmap="Reds", signed=False, name="RMS"),

@@ -23,7 +23,7 @@ import numpy as np
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Circle, Rectangle
 
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/SNMF/stimulus_design_random_bars.png")
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/SNMF/stimulus_design_random_bars.png")
 PATCH, BAR = 80.0, 4.0          # µm
 N_BARS = int(PATCH / BAR)
 BLUE_SPACING, ROW_SPACING = 12.0, 10.0

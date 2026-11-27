@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
 HERE = Path(__file__).resolve().parents[1] / "results"   # stimulus_frequency_exploration/results
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/noise_rate_comparison/frame_rate_concept.png")
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/stimulus_frequency_exploration/summary_figures/frame_rate_concept.png")
 COL = {5: "#08306b", 10: "#2171b5", 15: "#41ab5d", 20: "#a1d99b"}
 rng = np.random.default_rng(3)
 PATTERN = [1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0]   # fixed black/white sequence so every strip shows changes

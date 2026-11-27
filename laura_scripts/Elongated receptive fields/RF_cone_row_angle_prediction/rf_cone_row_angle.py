@@ -68,7 +68,7 @@ Image.MAX_IMAGE_PIXELS = None
 # ============================================================
 HERE = Path(__file__).resolve().parent
 ONH_FILE = HERE / "optic_nerve_head_positions.json"
-OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
+OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
 
 # Same recordings / channels as the summary alignment plots
 # (plot_population_overlays_all_recordings.py, 19/11/2026). 30/04 left out there too.

@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
 MIN_DSI, N_PERM = 0.15, 5000
 COL = {"crystalline": "#1e6fd9", "disrupted": "0.55", "larval patch": "#d98c3a"}
 rng = np.random.default_rng(91)

@@ -35,7 +35,7 @@ parser.add_argument("--bin-s", type=float, default=0.25)
 args = parser.parse_args()
 
 REPO = Path(__file__).resolve().parents[2]
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/OSI")
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/OSI")
 STIM = Path("/mnt/mea_nas/Laura/stimuli/stimuli_July_2026")
 ON = {13: "moving_bar_weighted_13fps_ON_800px_wide_800px_high_20px_thick_30.0px_ramp_1.0px_per_frame.h5",
       60: "moving_bar_weighted_60fps_ON_800px_wide_800px_high_20px_thick_30.0px_ramp_1.0px_per_frame.h5"}

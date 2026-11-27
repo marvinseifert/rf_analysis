@@ -32,7 +32,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--min-response-hz", type=float, default=3.0)
 args = parser.parse_args()
 
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
 N_PERM = 5000
 WL = [660, 610, 560, 535, 500, 460, 420, 365]
 SHORT, LONG = [460, 420, 365], [660, 610, 560]

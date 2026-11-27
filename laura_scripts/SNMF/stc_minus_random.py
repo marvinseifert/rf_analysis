@@ -48,7 +48,7 @@ parser.add_argument("--drop-first", type=int, default=100)
 parser.add_argument("--block", type=int, default=1000)
 args = parser.parse_args()
 
-OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/SNMF")
+OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/SNMF")
 REAL, NULL = "tab:blue", "tab:green"
 UM_PER_PX = 2.0
 cell_dir = args.stim_folder / f"cell_{args.cell}"

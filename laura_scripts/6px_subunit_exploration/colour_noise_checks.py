@@ -39,7 +39,7 @@ parser.add_argument("--min-q", type=float, default=10.0)
 parser.add_argument("--n-lags", type=int, default=8)
 args = parser.parse_args()
 
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/colour_noise_checks")
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/6px_subunit_exploration/colour_noise_checks")
 OUT.mkdir(parents=True, exist_ok=True)
 REC = {
     "15_10_2026": dict(root=Path("/mnt/mea_nas/Laura/zebrafish_15_10_2026/Phase_00"), stim_index=5,

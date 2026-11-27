@@ -35,7 +35,7 @@ from laura_scripts.Alignment_pipeline.alignment_recordings import (alignment_cac
                                                                    noise_data_v2_file)
 
 Image.MAX_IMAGE_PIXELS = None
-FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_row_angle_prediction")
+FIG = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/Elongated receptive fields/RF_cone_row_angle_prediction")
 rng = np.random.default_rng(61)
 out = {}
 

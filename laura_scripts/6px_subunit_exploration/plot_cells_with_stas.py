@@ -60,7 +60,7 @@ from laura_scripts.Alignment_pipeline.alignment_recordings import (
 
 Image.MAX_IMAGE_PIXELS = None
 
-OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/RF_cone_alignment_v2")
+OUTPUT_FOLDER = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/6px_subunit_exploration")
 REPO = Path(__file__).resolve().parents[2]
 
 STYLE = {

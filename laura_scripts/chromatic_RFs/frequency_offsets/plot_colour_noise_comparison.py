@@ -15,7 +15,7 @@ from scipy import stats
 
 HERE = Path(__file__).resolve().parent / "results"   # chromatic_RFs/frequency_offsets/results
 SFE = Path(__file__).resolve().parents[2] / "stimulus_frequency_exploration" / "response_width_integration"
-OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/noise_rate_comparison/colour_noise_comparison.png")
+OUT = Path("/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/rf_analysis/chromatic_RFs/frequency_offsets/colour_noise_comparison.png")
 LAGS = -800 + 10 * np.arange(100)
 COL = {"413": "#2171b5", "420": "#2171b5", "500": "#41ab5d", "610": "#cb181d", "white": "0.25", "white alone": "0.6"}
 NAME = {"413": "413 nm", "420": "420 nm", "500": "500 nm", "610": "610 nm", "white": "white", "white alone": "white alone"}
