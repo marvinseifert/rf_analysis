@@ -27,7 +27,7 @@ Cells are split into groups (GROUPS below; a cell is only shown in the first gro
 sorted by summed quality, --per-page cells per figure.
 
 Run from the rf_analysis repo root, e.g.
-    MPLBACKEND=Agg poetry run python "laura_scripts/chromatic RFs spatial offset/plot_chromatic_rfs.py" \
+    MPLBACKEND=Agg poetry run python laura_scripts/chromatic_RFs/spatial_offsets/plot_chromatic_rfs.py \
         --recording 22_10_2026 --sta-frames --fff
     ... --recording 15_10_2026 --cells 14 272
 Runtime: ~1 min to open the data, then ~10-30 s per cell (longer with --sta-frames).

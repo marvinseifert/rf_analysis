@@ -100,11 +100,23 @@ Results: the 6px checker (11.7 µm at 1.9476 µm/px) has ~2 % stimulus power at 
 | `rf_resolution_test.py` | Fourier ring correlation of two independent half-maps: the finest detail size that is reliable. |
 | `plot_bar_stimulus_design.py` | Design sketch (no data): random-bar stimuli (single bar, few bars, 1D flickering bars across / along the cone rows) on a schematic mosaic. |
 
-### `chromatic RFs spatial offset/`: RFs of interleaved colour noise (25 Nov 2026)
+### `chromatic_RFs/`: RFs of interleaved colour noise
+
+#### `chromatic_RFs/spatial_offsets/` (25 Nov 2026)
 
 | Script | What it does |
 |---|---|
 | `plot_chromatic_rfs.py` | Per-cell RF maps, outlines + overlay, RGB composites and STA kernels for every colour (15/10 P0, 22/10 P1), grouped by quality. Optional rows: STA frames (`--sta-frames`) and every scf / csteps PSTH (`--fff`). Rewrite of the lost script behind `Figures/RF_colour_offsets.pptx`. |
+
+#### `chromatic_RFs/frequency_offsets/`: speed / timing per colour (27 Nov 2026)
+
+Results in `frequency_offsets/results/`. Figure: Box `Figures/noise_rate_comparison/colour_noise_comparison.png`.
+
+| Script | What it does |
+|---|---|
+| `colour_noise_comparison.py` | Own 8-px-block STAs per colour for 22/10 P1 (10 Hz; 413/500/610 nm) and 15/10 P0 (15 Hz; white/610/500/420 nm, plus white alone): RF above chance per colour (spikes shifted by whole colour cycles), signal ÷ noise, half width, integration time, peak time. ~6.5 min, GPU. |
+| `colour_timing_detail.py` | Finer timing in the 15/10 colour noise (interpolated peak, half-height crossings, centre of mass), same cells across colours; polarity per colour (colour opponency). |
+| `plot_colour_noise_comparison.py` | The colour figure. |
 
 ### `Cone_imaging/`: cone mosaic spacing
 
@@ -211,6 +223,28 @@ The table combines RF, full-field, moving-stimulus and cone features.
 | `crystallinity_index_visualisation.py` | Shows cone mosaics for RFs from low to high crystallinity. |
 | `seaborn_plots.py` | Seaborn plots comparing RF and full-field traits across recordings. |
 | `__init__.py` | Makes the folder importable. |
+
+### `stimulus_frequency_exploration/`: choosing the noise frame rate (27 Nov 2026)
+
+Which noise rate (frame length) is best for RFs: signal ÷ noise vs temporal blur. Mainly 15/10/2026 (32px white noise at 5/10/15/20 Hz, 20 min each) plus the 20 Hz clustering recordings. All outputs in `stimulus_frequency_exploration/results/`; figures in Box `Figures/noise_rate_comparison/`. Agreed conclusions: memory note / conclusion box in `frame_rate_concept.png`.
+
+| Folder / script | What it does |
+|---|---|
+| `rate_comparison_15_10/quality_null_by_rate.py` | Per cell and rate: RF quality from own STAs (8-px blocks) and chance quality from time-shifted spikes. Basis of the chance correction. ~3.5 min, GPU. |
+| `rate_comparison_15_10/retina_health_bracket_stimuli.py` | Response reliability (QI) and firing of scf/csteps/chirp before (6–8) and after (13–15) the noise → per-cell health change. |
+| `rate_comparison_15_10/plot_noise_rate_summary.py` | Chance- and health-corrected RF quality per rate linked to chirp frequencies (`noise_rate_summary.png`); also writes `noise_rate_corrected_quality.csv` (best rate, chirp frequencies, ON/OFF). |
+| `rate_comparison_15_10/rf_timecourse_by_noise_rate.py` | RF-centre time courses per rate: peak time, half width, frames per width; same 27 cells (`rf_timecourse_by_noise_rate_same_cells.png`). |
+| `rate_comparison_15_10/signal_noise_by_rate.py` | Signal per spike vs noise per rate (same 27 cells): noise follows spike count, not frames. |
+| `chirp/chirp_max_following_frequency.py` | Replacement chirp measure: highest / strongest followed frequency from phase locking vs time-shifted chance (the fff `chirp_threshold_frequency` is broken). |
+| `response_width_integration/timecourse_measures.py` | Shared functions: half-height width + peak time, integration time (main lobe; both lobes). |
+| `response_width_integration/width_and_integration.py` | Width and integration time for the 20 Hz recordings (clustering selection + 15/05) and 15/10 per rate. |
+| `repeat_number/repeats_vs_rf.py` | How much the 2nd and 3rd identical 20-min repeats of 32px_15Hz_20mins_shuffle_x4 add (14/08, 07/08): RF yield, signal ÷ noise, time course, centre size, surround, map agreement for 20 / 40 / 60 min. ~2.5 min, GPU. |
+| `summary_figures/plot_frame_rate_concept.py` | The summary figure `frame_rate_concept.png` (schematic, measured numbers, per-recording widths, conclusion). |
+| `summary_figures/plot_sta_blur_schematic.py` | Schematic of how frames blur the STA time course (`sta_blur_schematic.png`). |
+
+Run order if regenerating: `quality_null_by_rate` → `retina_health_bracket_stimuli` → `chirp_max_following_frequency` → `plot_noise_rate_summary` → `rf_timecourse_by_noise_rate` → `signal_noise_by_rate` → `width_and_integration` → `plot_frame_rate_concept`.
+
+Old version kept in `legacy/stimulus_frequency_exploration/`.
 
 ### `Subunits/`: RF subunits with Gollisch semi-NMF
 
