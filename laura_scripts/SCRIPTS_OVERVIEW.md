@@ -183,6 +183,16 @@ The bar directions are chosen by recording date. In some recordings the moving b
 | `edge_tuning_table.py` | (23/11/2026) Moving-edge OSI/DSI for every cell and condition (22/07 ON/OFF 13 and 60 fps, 14/08 ON/OFF 13 fps; 07/08 skipped: triggers do not fit whole repeats), with a direction-label shuffle test; reuses `moving_edge_analysis.py` functions. Output: Box `Figures/OSI/edge_tuning_table.csv`. |
 | `edge_orientation_vs_cone_rows.py` | (23/11/2026) Significantly orientation-tuned edge cells vs their own cone row and RF axis (within-recording shuffle); only 3-10 % of cells tuned (14/08 at chance). |
 
+#### `OSI/edge_checks/`: are the moving edges responding? (27 Nov 2026)
+
+`moving_edge_analysis.py` times spikes as frame / Frame_Rate (13), but the "13 fps" files played at ~12 fps (14/08, 22/07) or 60 fps (21/07), so spikes were shifted / dropped. These checks use the real trigger times. Results in `edge_checks/results/`.
+
+| Script | What it does |
+|---|---|
+| `edge_reliability.py` | Repeat-to-repeat reliability of each cell's response per stimulus vs chance (each repeat shifted separately). 22/07 edges: up to 44 reliable cells; 07/08, 12/08, 14/08 (20 px files): ~none. |
+| `plot_edge_examples.py` | Raster + PSTH per direction for example cells (22/07 cells 148, 28, 232). |
+| `edge_row_modulation.py` | Repeat-locked firing at the cone-row crossing rate (1.5-6 Hz) during slow sweeps: no evidence. |
+
 ### `RF_analysis/`: general RF plotting and STA tools
 
 | Script | What it does |
@@ -238,6 +248,7 @@ Which noise rate (frame length) is best for RFs: signal ÷ noise vs temporal blu
 | `chirp/chirp_max_following_frequency.py` | Replacement chirp measure: highest / strongest followed frequency from phase locking vs time-shifted chance (the fff `chirp_threshold_frequency` is broken). |
 | `response_width_integration/timecourse_measures.py` | Shared functions: half-height width + peak time, integration time (main lobe; both lobes). |
 | `response_width_integration/width_and_integration.py` | Width and integration time for the 20 Hz recordings (clustering selection + 15/05) and 15/10 per rate. |
+| `repeat_number/colour_repeats_vs_rf.py` | Colour-sequence noise (15/10, 22/10): RF from 1..all repeats per colour; noise x sqrt(spikes) shows the colour sequences are frame-limited -> new noise versions beat repeats. |
 | `repeat_number/repeats_vs_rf.py` | How much the 2nd and 3rd identical 20-min repeats of 32px_15Hz_20mins_shuffle_x4 add (14/08, 07/08): RF yield, signal ÷ noise, time course, centre size, surround, map agreement for 20 / 40 / 60 min. ~2.5 min, GPU. |
 | `summary_figures/plot_frame_rate_concept.py` | The summary figure `frame_rate_concept.png` (schematic, measured numbers, per-recording widths, conclusion). |
 | `summary_figures/plot_sta_blur_schematic.py` | Schematic of how frames blur the STA time course (`sta_blur_schematic.png`). |
