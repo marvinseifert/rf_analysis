@@ -236,7 +236,7 @@ The table combines RF, full-field, moving-stimulus and cone features.
 
 ### `stimulus_frequency_exploration/`: choosing the noise frame rate (27 Nov 2026)
 
-Which noise rate (frame length) is best for RFs: signal ÷ noise vs temporal blur. Mainly 15/10/2026 (32px white noise at 5/10/15/20 Hz, 20 min each) plus the 20 Hz clustering recordings. All outputs in `stimulus_frequency_exploration/results/` (not in git - copy on Box: `SUSSEX/Python projects backup laura scripts/rf_analysis_results/`); figures in Box `Figures/noise_rate_comparison/`. Agreed conclusions: memory note / conclusion box in `frame_rate_concept.png`.
+Which noise rate (frame length) is best for RFs: signal ÷ noise vs temporal blur. Mainly 15/10/2026 (32px white noise at 5/10/15/20 Hz, 20 min each) plus the 20 Hz clustering recordings. All outputs in `stimulus_frequency_exploration/results/` (not in git - copy on Box: `SUSSEX/Experiments/Zebrafish/Figures/rf_analysis_results/`); figures in Box `Figures/noise_rate_comparison/`. Agreed conclusions: memory note / conclusion box in `frame_rate_concept.png`.
 
 | Folder / script | What it does |
 |---|---|
