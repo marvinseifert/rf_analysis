@@ -110,7 +110,7 @@ Results: the 6px checker (11.7 µm at 1.9476 µm/px) has ~2 % stimulus power at 
 
 #### `chromatic_RFs/frequency_offsets/`: speed / timing per colour (27 Nov 2026)
 
-Results in `frequency_offsets/results/`. Figure: Box `Figures/noise_rate_comparison/colour_noise_comparison.png`.
+Results in `frequency_offsets/results/` (not in git - copy on Box, see .gitignore). Figure: Box `Figures/noise_rate_comparison/colour_noise_comparison.png`.
 
 | Script | What it does |
 |---|---|
@@ -185,7 +185,7 @@ The bar directions are chosen by recording date. In some recordings the moving b
 
 #### `OSI/edge_checks/`: are the moving edges responding? (27 Nov 2026)
 
-`moving_edge_analysis.py` times spikes as frame / Frame_Rate (13), but the "13 fps" files played at ~12 fps (14/08, 22/07) or 60 fps (21/07), so spikes were shifted / dropped. These checks use the real trigger times. Results in `edge_checks/results/`.
+`moving_edge_analysis.py` times spikes as frame / Frame_Rate (13), but the "13 fps" files played at ~12 fps (14/08, 22/07) or 60 fps (21/07), so spikes were shifted / dropped. These checks use the real trigger times. Results in `edge_checks/results/` (not in git - copy on Box, see .gitignore).
 
 | Script | What it does |
 |---|---|
@@ -236,7 +236,7 @@ The table combines RF, full-field, moving-stimulus and cone features.
 
 ### `stimulus_frequency_exploration/`: choosing the noise frame rate (27 Nov 2026)
 
-Which noise rate (frame length) is best for RFs: signal ÷ noise vs temporal blur. Mainly 15/10/2026 (32px white noise at 5/10/15/20 Hz, 20 min each) plus the 20 Hz clustering recordings. All outputs in `stimulus_frequency_exploration/results/`; figures in Box `Figures/noise_rate_comparison/`. Agreed conclusions: memory note / conclusion box in `frame_rate_concept.png`.
+Which noise rate (frame length) is best for RFs: signal ÷ noise vs temporal blur. Mainly 15/10/2026 (32px white noise at 5/10/15/20 Hz, 20 min each) plus the 20 Hz clustering recordings. All outputs in `stimulus_frequency_exploration/results/` (not in git - copy on Box: `SUSSEX/Python projects backup laura scripts/rf_analysis_results/`); figures in Box `Figures/noise_rate_comparison/`. Agreed conclusions: memory note / conclusion box in `frame_rate_concept.png`.
 
 | Folder / script | What it does |
 |---|---|

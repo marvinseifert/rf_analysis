@@ -1,0 +1,9 @@
+# Laura's analysis results and figures: kept on Box, not in git (this repository is public).
+# Box: SUSSEX/Python projects backup laura scripts/rf_analysis_results/ (same folder layout as here).
+# Regenerate with the scripts next to each folder (run order in laura_scripts/SCRIPTS_OVERVIEW.md).
+laura_scripts/stimulus_frequency_exploration/results/
+laura_scripts/chromatic_RFs/frequency_offsets/results/
+laura_scripts/OSI/edge_checks/results/
+laura_scripts/Seaborn/fff_feature_pipeline/v3_work_2026-11-25/figures/
+laura_scripts/Seaborn/fff_feature_pipeline/v3_work_2026-11-25/maps/
+laura_scripts/Seaborn/fff_feature_pipeline/v3_work_2026-11-25/v3cells_all_classified.csv
