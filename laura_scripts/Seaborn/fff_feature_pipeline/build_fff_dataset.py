@@ -42,7 +42,8 @@ RECORDING_ROOT = Path(r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00")
 
 OVERVIEW_PATH = RECORDING_ROOT / "overview"
 
-NOISE_DATA_PATH = RECORDING_ROOT / "noise_analysis" / "noise_data_v2.nc"
+# noise_analysis_QI10: RF maps/outlines for every cell with RF quality >= 10
+NOISE_DATA_PATH = RECORDING_ROOT / "noise_analysis_QI10" / "noise_data_v2.nc"
 
 OUTPUT_DIR = RECORDING_ROOT / "fff_analysis"
 

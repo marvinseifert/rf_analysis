@@ -645,6 +645,8 @@ def calculate_cone_regularity_features(
         **kwargs,
     )
 
+    from cone_lattice_v3 import analyse_cone_crop_v3  # here: cone_lattice_v3 imports this module
+
     dataset = xr.load_dataset(config.noise_data_path)
     require_v2_rf_frame(dataset, str(config.noise_data_path))
     if config.dataset_assumed_um_per_px is None:
@@ -745,6 +747,10 @@ def calculate_cone_regularity_features(
                 config=config,
             )
         )
+
+        # v3 (25/11/2026): shape-independent lattice regularity, stored next to the v2
+        # columns (lattice_regularity, spacings, stretch, ...); see cone_lattice_v3.py.
+        row.update(analyse_cone_crop_v3(crop, actual_um_per_px, config))
 
         rows.append(row)
 

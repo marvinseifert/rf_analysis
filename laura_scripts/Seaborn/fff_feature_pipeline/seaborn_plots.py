@@ -37,15 +37,17 @@ sns.set_theme(
 #     RF channel to use for that recording
 
 RECORDINGS = [
+    # All recordings with a v2 cone alignment (same set and RF channels as
+    # RF_cone_row_angle_prediction/rf_cone_row_angle.py; 30/04 left out, 4px too fine).
     {
-        "recording_id": "14_08_2026",
-        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00"),
-        "rf_channel": "32px_15Hz_20mins_shuffle_x4",
+        "recording_id": "07_05_2026",
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_07_05_2026/Phase_00"),
+        "rf_channel": "12px_20Hz_20mins_shuffle_x12_white",
     },
     {
-        "recording_id": "22_07_2026",
-        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00"),
-        "rf_channel": "32px_15Hz_20mins_shuffle_x4",
+        "recording_id": "14_05_2026",
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_14_05_2026/Phase_00"),
+        "rf_channel": "12px_20Hz_25mins_shuffle_x12",
     },
     {
         "recording_id": "15_05_2026",
@@ -53,9 +55,24 @@ RECORDINGS = [
         "rf_channel": "12px_20Hz_25mins_shuffle_white",
     },
     {
-        "recording_id": "14_05_2026",
-        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_14_05_2026/Phase_00"),
-        "rf_channel": "12px_20Hz_25mins_shuffle_x12",
+        "recording_id": "22_07_2026",
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_22_07_2026/Phase_00"),
+        "rf_channel": "32px_15Hz_20mins_shuffle_x4",
+    },
+    {
+        "recording_id": "07_08_2026",
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_07_08_2026/Phase_00"),
+        "rf_channel": "32px_15Hz_20mins_shuffle_x4",
+    },
+    {
+        "recording_id": "14_08_2026",
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_14_08_2026/Phase_00"),
+        "rf_channel": "32px_15Hz_20mins_shuffle_x4",
+    },
+    {
+        "recording_id": "15_10_2026",
+        "root_path": Path(r"/mnt/mea_nas/Laura/zebrafish_15_10_2026/Phase_00"),
+        "rf_channel": "32px_15Hz_20mins_shuffle_x4",
     },
 ]
 
@@ -64,7 +81,11 @@ RECORDINGS = [
 # RF quality threshold
 # ------------------------------------------------------------
 
-RF_QUALITY_THRESHOLD = 20
+# One pairplot per threshold (cells with RF quality > threshold), so they can be compared.
+# RF data come from noise_analysis_QI10 (RF maps/outlines for every cell with quality >= 10),
+# so thresholds below 10 are not possible.
+RF_QUALITY_THRESHOLDS = [10, 20]
+RF_QUALITY_THRESHOLD = min(RF_QUALITY_THRESHOLDS)  # used when loading
 
 
 # %% ------------------------------------------------------------
@@ -112,12 +133,13 @@ def load_recording(
     recording_id,
     root_path,
     rf_channel,
+    noise_folder="noise_analysis_QI10",
 ):
     # --------------------------------------------------------
     # Paths
     # --------------------------------------------------------
 
-    rf_data_path = root_path / "noise_analysis" / "noise_data_v2.nc"
+    rf_data_path = root_path / noise_folder / "noise_data_v2.nc"
 
     fff_data_path = root_path / "fff_analysis" / "fff_data_v2.nc"
 
@@ -167,10 +189,10 @@ def load_recording(
     # Keep only RFs above quality threshold
     # --------------------------------------------------------
 
-    rf_df = rf_df[rf_df["quality"] >= RF_QUALITY_THRESHOLD].copy()
+    rf_df = rf_df[rf_df["quality"] > RF_QUALITY_THRESHOLD].copy()
 
     print(
-        f"RF cells with quality >= "
+        f"RF cells with quality > "
         f"{RF_QUALITY_THRESHOLD}: "
         f"{rf_df['cell_index'].nunique()}"
     )
@@ -179,7 +201,17 @@ def load_recording(
     # FFF dataframe
     # --------------------------------------------------------
 
-    fff_df = fff_dataset[FFF_TRAITS].to_dataframe().reset_index()
+    # Some recordings lack a stimulus (07/05: no moving bar; 07/08: only the
+    # weighted 60 fps bar, not extracted): those traits are left as NaN.
+    missing_traits = [t for t in FFF_TRAITS if t not in fff_dataset]
+    if missing_traits:
+        print(f"Missing FFF traits (set to NaN): {missing_traits}")
+    fff_df = (
+        fff_dataset[[t for t in FFF_TRAITS if t in fff_dataset]]
+        .to_dataframe()
+        .reindex(columns=FFF_TRAITS)
+        .reset_index()
+    )
 
     # --------------------------------------------------------
     # One FFF feature set per cell
@@ -246,6 +278,7 @@ for recording in RECORDINGS:
         recording_id=recording["recording_id"],
         root_path=recording["root_path"],
         rf_channel=recording["rf_channel"],
+        noise_folder=recording.get("noise_folder", "noise_analysis_QI10"),
     )
 
     all_recordings.append(recording_df)
@@ -357,10 +390,13 @@ response_traits = [
 # Make sure every recording_id has a colour.
 
 RECORDING_PALETTE = {
-    "15_05_2026": "red",
+    "07_05_2026": "purple",
     "14_05_2026": "blue",
-    "14_08_2026": "green",
+    "15_05_2026": "red",
     "22_07_2026": "orange",
+    "07_08_2026": "brown",
+    "14_08_2026": "green",
+    "15_10_2026": "black",
 }
 
 
@@ -369,21 +405,39 @@ RECORDING_PALETTE = {
 # Hue = recording
 # ------------------------------------------------------------
 
-g = sns.pairplot(
-    data=plot_df,
-    vars=response_traits,
-    hue="recording_id",
-    palette=RECORDING_PALETTE,
-    corner=True,
-    diag_kind="hist",
-    plot_kws={
-        "alpha": 0.6,
-        "s": 25,
-    },
-    diag_kws={
-        "alpha": 0.5,
-    },
-)
+for threshold in RF_QUALITY_THRESHOLDS:
+    subset = plot_df[plot_df["RF quality"] > threshold]
+    n_cells = subset.groupby("recording_id")["global_cell_id"].nunique()
+    print(f"\nRF quality > {threshold}: {len(subset)} cells\n{n_cells.to_string()}")
 
+    g = sns.pairplot(
+        data=subset,
+        vars=response_traits,
+        hue="recording_id",
+        hue_order=list(RECORDING_PALETTE),
+        palette=RECORDING_PALETTE,
+        corner=True,
+        diag_kind="hist",
+        plot_kws={
+            "alpha": 0.6,
+            "s": 25,
+        },
+        diag_kws={
+            "alpha": 0.5,
+        },
+    )
+    g.figure.suptitle(
+        f"RF quality > {threshold} (noise_analysis_QI10, v2): {len(subset)} cells, "
+        f"{subset['recording_id'].nunique()} recordings",
+        y=1.01,
+    )
+
+    output_figure = Path(
+        r"/home/laura/Box/SUSSEX/Experiments/Zebrafish/Figures/Seaborn"
+        rf"/seaborn_pairplot_v2_RFquality_above_{threshold}_all_aligned_recordings.png"
+    )
+    output_figure.parent.mkdir(parents=True, exist_ok=True)
+    g.savefig(output_figure, dpi=150, bbox_inches="tight")
+    print(f"Saved: {output_figure}")
 
 plt.show()
